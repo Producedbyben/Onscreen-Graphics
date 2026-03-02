@@ -36,6 +36,43 @@ export interface Track {
   locked?: boolean;
 }
 
+export interface TemplateEditableField {
+  id: string;
+  label: string;
+  type: "text" | "color" | "avatar" | "icon";
+  defaultValue: string;
+  description?: string;
+}
+
+export interface TemplateLayoutZone {
+  id: string;
+  label: string;
+  kind: "title" | "content" | "badge" | "footer" | "media" | string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  safeAreaAware: boolean;
+}
+
+export interface TemplateAnimationPreset {
+  id: string;
+  label: string;
+  target: "card" | "row" | "headline" | "counter" | "icon" | string;
+  in: string;
+  out: string;
+  durationMs: number;
+}
+
+export interface TemplateSceneRule {
+  id: string;
+  label: string;
+  minDurationMs: number;
+  maxDurationMs?: number;
+  transition: "cut" | "fade" | "slide-up" | "slide-left" | "zoom" | string;
+  autoAdvance: boolean;
+}
+
 export interface TemplateDefinition {
   id: string;
   name: string;
@@ -44,6 +81,11 @@ export interface TemplateDefinition {
   trackBlueprints: Array<Pick<Track, "name" | "type">>;
   defaultOverlays: OverlayElement[];
   placeholders?: Record<string, string>;
+  editableFields: TemplateEditableField[];
+  layoutZones: TemplateLayoutZone[];
+  animationPresets: TemplateAnimationPreset[];
+  defaultDurationMs: number;
+  sceneSequencingRules: TemplateSceneRule[];
 }
 
 export interface Project {
@@ -57,4 +99,5 @@ export interface Project {
   template?: TemplateDefinition;
   createdAt: string;
   updatedAt: string;
+  metadata?: Record<string, unknown>;
 }

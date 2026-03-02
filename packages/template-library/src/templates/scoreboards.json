@@ -1,0 +1,42 @@
+{
+  "id": "live-scoreboard-vertical",
+  "name": "Live Scoreboard (Vertical)",
+  "category": "scoreboards",
+  "aspectRatio": "9:16",
+  "trackBlueprints": [
+    { "name": "Background Loop", "type": "video" },
+    { "name": "Scoreboard Overlay", "type": "overlay" }
+  ],
+  "defaultOverlays": [],
+  "placeholders": {
+    "matchLabel": "Match Day",
+    "homeTeam": "Home Team",
+    "awayTeam": "Away Team"
+  },
+  "editableFields": [
+    { "id": "matchLabel", "label": "Match Label", "type": "text", "defaultValue": "Match Day" },
+    { "id": "homeTeam", "label": "Home Team", "type": "text", "defaultValue": "Home Team" },
+    { "id": "awayTeam", "label": "Away Team", "type": "text", "defaultValue": "Away Team" },
+    { "id": "homeAvatar", "label": "Home Avatar", "type": "avatar", "defaultValue": "home-badge" },
+    { "id": "awayAvatar", "label": "Away Avatar", "type": "avatar", "defaultValue": "away-badge" },
+    { "id": "primaryColor", "label": "Primary Color", "type": "color", "defaultValue": "#0EA5E9" },
+    { "id": "secondaryColor", "label": "Secondary Color", "type": "color", "defaultValue": "#1F2937" },
+    { "id": "scoreIcon", "label": "Score Icon", "type": "icon", "defaultValue": "bolt" }
+  ],
+  "layoutZones": [
+    { "id": "header", "label": "Header", "kind": "title", "x": 72, "y": 120, "width": 936, "height": 180, "safeAreaAware": true },
+    { "id": "team-rows", "label": "Team/Player Rows", "kind": "content", "x": 72, "y": 340, "width": 936, "height": 1180, "safeAreaAware": true },
+    { "id": "live-score", "label": "Live Score Fields", "kind": "badge", "x": 72, "y": 1540, "width": 936, "height": 220, "safeAreaAware": true }
+  ],
+  "animationPresets": [
+    { "id": "row-wipe", "label": "Row Wipe", "target": "row", "in": "slide-left", "out": "fade", "durationMs": 320 },
+    { "id": "score-pulse", "label": "Score Pulse", "target": "counter", "in": "zoom", "out": "fade", "durationMs": 260 },
+    { "id": "header-reveal", "label": "Header Reveal", "target": "headline", "in": "fade", "out": "fade", "durationMs": 240 }
+  ],
+  "defaultDurationMs": 20000,
+  "sceneSequencingRules": [
+    { "id": "pregame", "label": "Pre-game", "minDurationMs": 2500, "maxDurationMs": 4000, "transition": "fade", "autoAdvance": true },
+    { "id": "live-update", "label": "Live Update Loop", "minDurationMs": 3000, "maxDurationMs": 5000, "transition": "cut", "autoAdvance": true },
+    { "id": "final", "label": "Final Score", "minDurationMs": 3000, "maxDurationMs": 4500, "transition": "slide-up", "autoAdvance": true }
+  ]
+}
