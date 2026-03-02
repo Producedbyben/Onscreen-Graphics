@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Onscreen Graphics Local UI</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+      }
+
+      .panel {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        align-items: end;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        font-size: 0.9rem;
+        gap: 6px;
+      }
+
+      input,
+      select,
+      button,
+      textarea {
+        border-radius: 8px;
+        border: 1px solid #475569;
+        background: #0b1220;
+        color: inherit;
+        font: inherit;
+        padding: 10px;
+      }
+
+      button {
+        cursor: pointer;
+        background: #0284c7;
+        border-color: #0369a1;
+        font-weight: 600;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.8rem;
+        max-height: 480px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Onscreen Graphics Local Runner</h1>
+      <p>Generate a demo project from templates directly in Chrome.</p>
+
+      <section class="panel">
+        <div class="row">
+          <label>
+            Template
+            <select id="templateSelect"></select>
+          </label>
+          <label>
+            Project name
+            <input id="projectName" type="text" value="Untitled from Upload" />
+          </label>
+          <button id="createBtn" type="button">Create project JSON</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Result</h2>
+        <pre id="output">Loading templates…</pre>
+      </section>
+    </main>
+
+    <script type="module">
+      const templateSelect = document.querySelector('#templateSelect');
+      const projectNameInput = document.querySelector('#projectName');
+      const createBtn = document.querySelector('#createBtn');
+      const output = document.querySelector('#output');
+
+      async function loadTemplates() {
+        const response = await fetch('/api/templates');
+        const data = await response.json();
+        templateSelect.innerHTML = '';
+
+        for (const template of data.templates) {
+          const option = document.createElement('option');
+          option.value = template.id;
+          option.textContent = `${template.name} (${template.aspectRatio})`;
+          templateSelect.append(option);
+        }
+
+        output.textContent = `Loaded ${data.templates.length} templates. Click "Create project JSON".`;
+      }
+
+      async function createProject() {
+        output.textContent = 'Creating project…';
+
+        const response = await fetch('/api/projects/from-template', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            templateId: templateSelect.value,
+            projectName: projectNameInput.value
+          })
+        });
+
+        const data = await response.json();
+        output.textContent = JSON.stringify(data, null, 2);
+      }
+
+      createBtn.addEventListener('click', createProject);
+      loadTemplates().catch((error) => {
+        output.textContent = `Failed to load templates: ${error.message}`;
+      });
+    </script>
+  </body>
+</html>

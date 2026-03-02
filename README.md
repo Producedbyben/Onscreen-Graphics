@@ -7,7 +7,7 @@ This repository is organized as a TypeScript monorepo for building an on-screen 
 From the repo root:
 
 - `npm install` — install all workspace dependencies.
-- `npm run dev:web` — run the editor UI app in `apps/web`.
+- `npm run dev:web` — run the local web UI server in `apps/web` (open http://localhost:3000 in Chrome).
 - `npm run typecheck` — run type checks across all workspaces.
 - `npm run build` — build every workspace package/app.
 

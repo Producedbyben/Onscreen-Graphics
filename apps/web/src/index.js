@@ -1,9 +1,11 @@
+import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { basename, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const templatesDir = resolve(__dirname, "../../../packages/template-library/src/templates");
+const indexHtmlPath = resolve(__dirname, "../public/index.html");
 
 const templateSources = ["ranking-videos.json", "scoreboards.json", "countdown-list.json"];
 
@@ -121,52 +123,40 @@ function createProjectFromTemplate({ templateId, projectName, baseProject }) {
         durationMs: template.defaultDurationMs
       });
 
-  const overlayTrack = project.tracks.find((track) => track.type === "overlay");
-  if (!overlayTrack) {
-    project.tracks.push({
-      id: `${project.id}-track-overlay`,
-      name: "Overlays",
-      type: "overlay",
-      clips: [],
-      muted: false,
-      locked: false
-    });
-  }
-
   project.template = template;
-  project.durationMs = Math.max(project.durationMs, template.defaultDurationMs);
-  project.metadata.createFlow = "create-from-template";
-  project.metadata.editableFieldDefaults = template.editableFields.reduce((accumulator, field) => {
-    accumulator[field.id] = field.defaultValue;
-    return accumulator;
-  }, {});
-  project.metadata.layoutZones = template.layoutZones;
-  project.metadata.animationPresets = template.animationPresets;
-  project.metadata.sceneSequencingRules = template.sceneSequencingRules;
+  project.metadata.createFlow = "template-first";
+  project.metadata.editableFieldDefaults = { ...(template.defaults?.fields ?? {}) };
+  project.metadata.bulkFieldValues = { ...(template.defaults?.fields ?? {}) };
   project.updatedAt = new Date().toISOString();
 
   return project;
 }
 
 function applyTemplateOneClick(project, templateId) {
-  return createProjectFromTemplate({
-    templateId,
-    baseProject: project,
-    projectName: project.name
-  });
+  const nextProject = createProjectFromTemplate({ templateId, baseProject: project });
+  const videoTrack = nextProject.tracks.find((track) => track.type === "video");
+
+  if (videoTrack?.clips[0]) {
+    const clip = videoTrack.clips[0];
+    clip.overlays = [
+      {
+        id: `${clip.id}-overlay-title`,
+        kind: "text",
+        layer: 1,
+        startTimeMs: 500,
+        endTimeMs: 3200,
+        style: { fontSize: 64, color: "#FFFFFF" },
+        keyframes: []
+      }
+    ];
+  }
+
+  return nextProject;
 }
 
-function bulkEditTemplateFields(project, updates) {
+function bulkEditTemplateFields(project, fieldsPatch) {
   const nextProject = JSON.parse(JSON.stringify(project));
-  const merged = { ...(nextProject.metadata.bulkFieldValues ?? {}), ...updates };
-
-  nextProject.metadata.bulkFieldValues = merged;
-
-  nextProject.scenes = (nextProject.scenes ?? []).map((scene) => ({
-    ...scene,
-    fields: { ...(scene.fields ?? {}), ...updates }
-  }));
-
+  nextProject.metadata.bulkFieldValues = { ...nextProject.metadata.bulkFieldValues, ...fieldsPatch };
   nextProject.updatedAt = new Date().toISOString();
   return nextProject;
 }
@@ -310,14 +300,12 @@ function buildDemoSceneData(project) {
   return nextProject;
 }
 
-function runCreateFromTemplateFlow(selectedTemplateId) {
+function runCreateFromTemplateFlow(selectedTemplateId, projectName) {
   const templateOptions = listTemplateMetadata();
-  console.log("Available templates:");
-  console.table(templateOptions);
 
   let project = importMp4AndCreateProject({
     filePath: "./uploads/background.mp4",
-    projectName: "Untitled from Upload",
+    projectName: projectName || "Untitled from Upload",
     aspectRatio: templateOptions[0]?.aspectRatio ?? "9:16"
   });
 
@@ -338,13 +326,64 @@ function runCreateFromTemplateFlow(selectedTemplateId) {
     project.metadata.warnings.push(fitResult.warning);
   }
 
-  console.log("Created project using upload + template + quick actions:");
-  console.log(JSON.stringify({ project, fitResult }, null, 2));
-
-  return project;
+  return { project, fitResult };
 }
 
-runCreateFromTemplateFlow(process.env.TEMPLATE_ID);
+function startWebServer() {
+  const port = Number(process.env.PORT ?? 3000);
+  const indexHtml = readFileSync(indexHtmlPath, "utf8");
+
+  const server = createServer(async (req, res) => {
+    const { method, url } = req;
+
+    if (method === "GET" && url === "/") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(indexHtml);
+      return;
+    }
+
+    if (method === "GET" && url === "/api/templates") {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ templates: listTemplateMetadata() }));
+      return;
+    }
+
+    if (method === "POST" && url === "/api/projects/from-template") {
+      try {
+        const body = await new Promise((resolveBody, rejectBody) => {
+          let raw = "";
+          req.on("data", (chunk) => {
+            raw += chunk;
+          });
+          req.on("end", () => resolveBody(raw));
+          req.on("error", rejectBody);
+        });
+
+        const parsedBody = body ? JSON.parse(body) : {};
+        const { templateId, projectName } = parsedBody;
+
+        const result = runCreateFromTemplateFlow(templateId, projectName);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify(result, null, 2));
+      } catch (error) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ error: "Not Found" }));
+  });
+
+  server.listen(port, () => {
+    console.log(`Onscreen web UI running at http://localhost:${port}`);
+  });
+}
+
+if (process.env.NODE_ENV !== "test") {
+  startWebServer();
+}
 
 export {
   applyStyleToAllScenes,
@@ -357,5 +396,6 @@ export {
   listTemplateMetadata,
   moveOverlayWithTimelineRules,
   runCreateFromTemplateFlow,
-  setTimelineLayerLock
+  setTimelineLayerLock,
+  startWebServer
 };
