@@ -1,0 +1,38 @@
+{
+  "id": "countdown-list-vertical",
+  "name": "Countdown List (Vertical)",
+  "category": "listicles",
+  "aspectRatio": "9:16",
+  "trackBlueprints": [
+    { "name": "Background Media", "type": "video" },
+    { "name": "Countdown Overlay", "type": "overlay" }
+  ],
+  "defaultOverlays": [],
+  "placeholders": {
+    "headline": "5 Things You Need to Know",
+    "cta": "Follow for part 2"
+  },
+  "editableFields": [
+    { "id": "headline", "label": "Headline", "type": "text", "defaultValue": "5 Things You Need to Know" },
+    { "id": "cta", "label": "Call to Action", "type": "text", "defaultValue": "Follow for part 2" },
+    { "id": "highlightColor", "label": "Highlight Color", "type": "color", "defaultValue": "#F59E0B" },
+    { "id": "backgroundTint", "label": "Background Tint", "type": "color", "defaultValue": "#0F172A" },
+    { "id": "countdownIcon", "label": "Countdown Icon", "type": "icon", "defaultValue": "clock" }
+  ],
+  "layoutZones": [
+    { "id": "headline", "label": "Headline", "kind": "title", "x": 64, "y": 120, "width": 952, "height": 220, "safeAreaAware": true },
+    { "id": "list-items", "label": "Countdown/List Items", "kind": "content", "x": 64, "y": 360, "width": 952, "height": 1200, "safeAreaAware": true },
+    { "id": "cta", "label": "CTA", "kind": "footer", "x": 64, "y": 1600, "width": 952, "height": 170, "safeAreaAware": true }
+  ],
+  "animationPresets": [
+    { "id": "countdown-flip", "label": "Countdown Flip", "target": "counter", "in": "zoom", "out": "fade", "durationMs": 300 },
+    { "id": "item-slide", "label": "Item Slide", "target": "row", "in": "slide-up", "out": "fade", "durationMs": 360 },
+    { "id": "cta-fade", "label": "CTA Fade", "target": "headline", "in": "fade", "out": "fade", "durationMs": 220 }
+  ],
+  "defaultDurationMs": 25000,
+  "sceneSequencingRules": [
+    { "id": "hook", "label": "Hook", "minDurationMs": 1800, "maxDurationMs": 2600, "transition": "fade", "autoAdvance": true },
+    { "id": "countdown", "label": "Countdown Sequence", "minDurationMs": 2300, "maxDurationMs": 3200, "transition": "slide-up", "autoAdvance": true },
+    { "id": "cta", "label": "CTA", "minDurationMs": 2000, "maxDurationMs": 3000, "transition": "fade", "autoAdvance": true }
+  ]
+}

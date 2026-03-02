@@ -1,0 +1,38 @@
+{
+  "id": "ranking-videos-vertical",
+  "name": "Ranking Videos (Vertical)",
+  "category": "rankings",
+  "aspectRatio": "9:16",
+  "trackBlueprints": [
+    { "name": "Background Video", "type": "video" },
+    { "name": "Cards Overlay", "type": "overlay" }
+  ],
+  "defaultOverlays": [],
+  "placeholders": {
+    "title": "Top 10 Plays",
+    "subtitle": "Season Highlights"
+  },
+  "editableFields": [
+    { "id": "title", "label": "Title", "type": "text", "defaultValue": "Top 10 Plays" },
+    { "id": "subtitle", "label": "Subtitle", "type": "text", "defaultValue": "Season Highlights" },
+    { "id": "accentColor", "label": "Accent Color", "type": "color", "defaultValue": "#FF4D6D" },
+    { "id": "cardColor", "label": "Card Color", "type": "color", "defaultValue": "#111827" },
+    { "id": "rankIcon", "label": "Rank Icon", "type": "icon", "defaultValue": "trophy" }
+  ],
+  "layoutZones": [
+    { "id": "safe-top", "label": "Safe Top", "kind": "title", "x": 60, "y": 140, "width": 960, "height": 220, "safeAreaAware": true },
+    { "id": "rank-cards", "label": "Ranked Cards", "kind": "content", "x": 60, "y": 380, "width": 960, "height": 1220, "safeAreaAware": true },
+    { "id": "footer", "label": "Footer", "kind": "footer", "x": 60, "y": 1640, "width": 960, "height": 160, "safeAreaAware": true }
+  ],
+  "animationPresets": [
+    { "id": "cards-slide-up", "label": "Cards Slide Up", "target": "card", "in": "slide-up", "out": "fade", "durationMs": 450 },
+    { "id": "numbers-pop", "label": "Numbers Pop", "target": "icon", "in": "zoom", "out": "fade", "durationMs": 300 },
+    { "id": "title-fade", "label": "Title Fade", "target": "headline", "in": "fade", "out": "fade", "durationMs": 250 }
+  ],
+  "defaultDurationMs": 30000,
+  "sceneSequencingRules": [
+    { "id": "intro", "label": "Intro", "minDurationMs": 2000, "maxDurationMs": 3000, "transition": "fade", "autoAdvance": true },
+    { "id": "ranking-items", "label": "Ranking Items", "minDurationMs": 2200, "maxDurationMs": 2800, "transition": "slide-up", "autoAdvance": true },
+    { "id": "outro", "label": "Outro", "minDurationMs": 2000, "maxDurationMs": 3000, "transition": "fade", "autoAdvance": true }
+  ]
+}
