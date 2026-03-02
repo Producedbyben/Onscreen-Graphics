@@ -13,7 +13,7 @@ From the repo root:
 
 For a server-free local experience:
 
-- `run-local.html` — open this file directly in Chrome for a no-server local editor-style interface (canvas preview, scenes, timeline, JSON export; no `npm install` required).
+- `run-local.html` — open this file directly in Chrome for a no-server local video editor (template picker, video upload preview, draggable text layers, timeline visibility windows, scenes, and JSON export; no `npm install` required).
 
 You can also run package-specific scripts:
 

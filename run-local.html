@@ -3,182 +3,396 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Onscreen Graphics Local Editor</title>
+    <title>Onscreen Graphics — Local Video Editor</title>
     <style>
-      :root { color-scheme: dark; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      :root {
+        color-scheme: dark;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
       * { box-sizing: border-box; }
-      body { margin: 0; background: #0b1220; color: #e2e8f0; }
-      .app { display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh; }
-      header { border-bottom: 1px solid #233048; padding: 14px 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-      h1 { margin: 0; font-size: 1.1rem; }
-      .badge { background: #12355e; color: #93c5fd; border: 1px solid #1d4b80; border-radius: 999px; padding: 4px 10px; font-size: .75rem; }
-      .editor { display: grid; grid-template-columns: 300px 1fr 320px; gap: 14px; padding: 14px; }
-      .panel { background: #111b30; border: 1px solid #24324b; border-radius: 12px; padding: 12px; min-height: 0; }
-      .panel h2 { margin: 0 0 10px; font-size: .95rem; color: #bfdbfe; }
-      label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; margin-bottom: 10px; }
-      input, select, button, textarea { background: #0a1426; border: 1px solid #304361; color: #e2e8f0; border-radius: 8px; padding: 9px; font: inherit; }
+      body { margin: 0; background: #0b1020; color: #e2e8f0; }
+      .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
+      header {
+        border-bottom: 1px solid #26324a;
+        padding: 12px 16px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        background: #0d1326;
+      }
+      header h1 { margin: 0; font-size: 1rem; }
+      .pill { font-size: .75rem; color: #93c5fd; border: 1px solid #1d4b80; border-radius: 999px; padding: 4px 10px; background: #102745; }
+      main {
+        display: grid;
+        grid-template-columns: 320px minmax(520px, 1fr) 340px;
+        gap: 12px;
+        padding: 12px;
+        min-height: 0;
+      }
+      .panel {
+        background: #121a31;
+        border: 1px solid #27334c;
+        border-radius: 12px;
+        padding: 12px;
+        min-height: 0;
+        overflow: auto;
+      }
+      h2 { margin: 0 0 10px; font-size: .9rem; color: #bfdbfe; }
+      label { display: flex; flex-direction: column; gap: 6px; font-size: .82rem; margin-bottom: 10px; }
+      input, select, button, textarea {
+        background: #0b1428;
+        border: 1px solid #324463;
+        color: #e2e8f0;
+        border-radius: 8px;
+        padding: 9px;
+        font: inherit;
+      }
       button { cursor: pointer; background: #0369a1; border-color: #075985; font-weight: 600; }
-      button.secondary { background: #13233b; }
-      .canvas-wrap { display: grid; place-items: center; height: 100%; min-height: 360px; }
-      .canvas { width: min(330px, 90%); aspect-ratio: 9 / 16; border-radius: 18px; border: 2px solid #334155; position: relative; overflow: hidden; background: linear-gradient(180deg, #1e293b, #0f172a); }
-      .safe { position: absolute; inset: 8%; border: 1px dashed #64748b; border-radius: 10px; }
-      .title { position: absolute; top: 14%; left: 10%; right: 10%; font-size: 1.3rem; font-weight: 700; }
-      .subtitle { position: absolute; top: 24%; left: 10%; right: 10%; color: #cbd5e1; font-size: .95rem; }
-      .cta { position: absolute; bottom: 12%; left: 10%; right: 10%; background: rgba(15,23,42,.65); border: 1px solid #334155; border-radius: 10px; padding: 8px 10px; }
-      .scene-list, .timeline { display: grid; gap: 8px; }
-      .scene, .tick { border: 1px solid #2c3f5e; background: #0d172b; border-radius: 8px; padding: 8px; font-size: .82rem; }
-      pre { margin: 0; max-height: 220px; overflow: auto; font-size: .75rem; background: #07101d; border: 1px solid #233048; border-radius: 8px; padding: 10px; }
-      footer { border-top: 1px solid #233048; padding: 10px 14px; font-size: .82rem; color: #94a3b8; }
+      button.secondary { background: #17243f; }
+      button.ghost { background: transparent; border-color: #3a4f72; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; }
+      .stack { display: grid; gap: 8px; }
+
+      .stage-wrap { display: grid; place-items: center; height: 100%; min-height: 380px; }
+      .stage {
+        position: relative;
+        width: min(390px, 92%);
+        aspect-ratio: 9 / 16;
+        background: #0a0f1e;
+        border: 2px solid #334155;
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      .stage video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: #000;
+      }
+      .safe { position: absolute; inset: 7%; border: 1px dashed rgba(148,163,184,.55); border-radius: 10px; pointer-events: none; }
+      .overlay {
+        position: absolute;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(15,23,42,.6);
+        border: 1px solid rgba(148,163,184,.35);
+        color: white;
+        user-select: none;
+        cursor: move;
+        white-space: pre-wrap;
+        min-width: 80px;
+      }
+      .overlay.selected { outline: 2px solid #38bdf8; }
+
+      .timeline { margin-top: 10px; border: 1px solid #2c3f5e; border-radius: 10px; padding: 8px; background: #0d162b; }
+      .timeline-track { position: relative; height: 42px; background: #0b1220; border: 1px solid #24334b; border-radius: 8px; overflow: hidden; }
+      .clip { position: absolute; top: 8px; bottom: 8px; border-radius: 6px; background: #1d4ed8; color: #dbeafe; font-size: .72rem; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; }
+      .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #f43f5e; }
+
+      .layer-item, .scene-item {
+        border: 1px solid #314463;
+        background: #0d172b;
+        border-radius: 8px;
+        padding: 8px;
+        font-size: .8rem;
+      }
+      .layer-item.active { border-color: #38bdf8; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      footer { border-top: 1px solid #27334c; padding: 10px 12px; background: #0d1326; }
+      pre { margin: 0; max-height: 160px; overflow: auto; background: #091122; border: 1px solid #233048; border-radius: 10px; padding: 10px; font-size: .72rem; }
     </style>
   </head>
   <body>
     <div class="app">
       <header>
         <h1>Onscreen Graphics Local Editor</h1>
-        <span class="badge">Open this file directly in Chrome · no server needed</span>
+        <span class="pill">No server required</span>
+        <span class="pill">Template-first</span>
+        <span class="pill">Video upload + preview</span>
       </header>
 
-      <main class="editor">
-        <section class="panel">
-          <h2>Project Setup</h2>
+      <main>
+        <section class="panel stack">
+          <h2>Project & Template</h2>
           <label>Template <select id="templateSelect"></select></label>
-          <label>Project name <input id="projectName" value="My Local Project" /></label>
-          <div style="display:flex; gap:8px; margin: 10px 0 14px;">
-            <button id="newBtn">New project</button>
+          <label>Project Name <input id="projectName" value="My Sports Graphic Project" /></label>
+          <label>Upload Video (mp4/webm/mov)
+            <input id="videoInput" type="file" accept="video/*" />
+          </label>
+          <div class="row">
+            <button id="newProjectBtn">Create / Reset Project</button>
             <button id="downloadBtn" class="secondary">Download JSON</button>
           </div>
 
-          <h2>Editable Fields</h2>
-          <div id="fields"></div>
+          <h2>Template Fields</h2>
+          <div id="templateFields"></div>
+
+          <h2>Add Overlay Layer</h2>
+          <label>Text <textarea id="newOverlayText" rows="2">New text layer</textarea></label>
+          <div class="row">
+            <button id="addOverlayBtn" class="ghost">Add Text Layer</button>
+          </div>
         </section>
 
         <section class="panel">
-          <h2>Canvas Preview (Canva-style workspace)</h2>
-          <div class="canvas-wrap">
-            <div class="canvas" id="canvas">
+          <h2>Canvas / Video Preview</h2>
+          <div class="stage-wrap">
+            <div class="stage" id="stage">
+              <video id="video" controls playsinline></video>
               <div class="safe"></div>
-              <div class="title" id="previewTitle"></div>
-              <div class="subtitle" id="previewSubtitle"></div>
-              <div class="cta" id="previewCta"></div>
+              <div id="overlayRoot"></div>
+            </div>
+          </div>
+
+          <div class="timeline">
+            <div class="row" style="justify-content:space-between; align-items:center;">
+              <strong style="font-size:.82rem;">Timeline</strong>
+              <span class="mono" id="timeLabel">0.00s / 0.00s</span>
+            </div>
+            <input id="seek" type="range" min="0" max="1" value="0" step="0.001" style="width:100%; margin:8px 0;" />
+            <div class="timeline-track" id="timelineTrack">
+              <div class="playhead" id="playhead"></div>
             </div>
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel stack">
           <h2>Scenes</h2>
-          <div class="scene-list" id="scenes"></div>
-          <h2 style="margin-top:14px;">Timeline</h2>
-          <div class="timeline" id="timeline"></div>
+          <div id="sceneList"></div>
+
+          <h2>Layers</h2>
+          <div id="layerList"></div>
+
+          <h2>Selected Layer Properties</h2>
+          <div id="layerProps">No layer selected.</div>
         </section>
       </main>
 
       <footer>
-        <strong>Export JSON</strong>
+        <strong style="font-size:.82rem;">Project JSON</strong>
         <pre id="output"></pre>
       </footer>
     </div>
 
     <script>
-      const templates = [
+      const TEMPLATE_LIBRARY = [
         {
           id: "ranking-videos-vertical",
           name: "Ranking Videos (Vertical)",
           aspectRatio: "9:16",
           defaultDurationMs: 30000,
-          editableFields: [
+          scenes: ["Intro", "Top Picks", "Countdown", "Outro"],
+          fields: [
             { id: "title", label: "Title", defaultValue: "Top 10 Plays" },
             { id: "subtitle", label: "Subtitle", defaultValue: "Season Highlights" },
-            { id: "cta", label: "Call to Action", defaultValue: "Watch until #1" },
-            { id: "accentColor", label: "Accent Color", defaultValue: "#FF4D6D", type: "color" }
+            { id: "cta", label: "CTA", defaultValue: "Comment your #1" },
+            { id: "accentColor", label: "Accent Color", type: "color", defaultValue: "#ff4d6d" }
           ],
-          scenes: ["Intro", "Ranking Sequence", "Outro"]
+          starterOverlays: [
+            { id: "ov-title", textField: "title", x: 10, y: 10, startMs: 300, endMs: 6000, fontSize: 38, weight: 700 },
+            { id: "ov-subtitle", textField: "subtitle", x: 10, y: 20, startMs: 1100, endMs: 7200, fontSize: 24, weight: 500 },
+            { id: "ov-cta", textField: "cta", x: 10, y: 78, startMs: 5200, endMs: 12000, fontSize: 20, weight: 600 }
+          ]
         },
         {
           id: "live-scoreboard-vertical",
           name: "Live Scoreboard (Vertical)",
           aspectRatio: "9:16",
           defaultDurationMs: 20000,
-          editableFields: [
+          scenes: ["Pre-Game", "Kickoff", "Score Update", "Full Time"],
+          fields: [
             { id: "title", label: "Match Label", defaultValue: "Match Day" },
-            { id: "subtitle", label: "Home vs Away", defaultValue: "Home Team vs Away Team" },
+            { id: "subtitle", label: "Teams", defaultValue: "Home Team vs Away Team" },
             { id: "cta", label: "Footer", defaultValue: "Live updates every minute" },
-            { id: "accentColor", label: "Primary Color", defaultValue: "#0EA5E9", type: "color" }
+            { id: "accentColor", label: "Primary Color", type: "color", defaultValue: "#0ea5e9" }
           ],
-          scenes: ["Pre-game", "Live Update", "Final Score"]
-        },
-        {
-          id: "countdown-list-vertical",
-          name: "Countdown List (Vertical)",
-          aspectRatio: "9:16",
-          defaultDurationMs: 25000,
-          editableFields: [
-            { id: "title", label: "Headline", defaultValue: "5 Things You Need to Know" },
-            { id: "subtitle", label: "Subheadline", defaultValue: "Quick countdown format" },
-            { id: "cta", label: "CTA", defaultValue: "Follow for part 2" },
-            { id: "accentColor", label: "Highlight Color", defaultValue: "#F59E0B", type: "color" }
-          ],
-          scenes: ["Hook", "Countdown", "CTA"]
+          starterOverlays: [
+            { id: "ov-title", textField: "title", x: 10, y: 8, startMs: 0, endMs: 18000, fontSize: 34, weight: 700 },
+            { id: "ov-subtitle", textField: "subtitle", x: 10, y: 18, startMs: 500, endMs: 18000, fontSize: 22, weight: 500 },
+            { id: "ov-cta", textField: "cta", x: 10, y: 82, startMs: 2000, endMs: 18000, fontSize: 18, weight: 500 }
+          ]
         }
       ];
 
-      const ratioMap = { "9:16": [1080, 1920], "16:9": [1920, 1080], "1:1": [1080, 1080] };
-      const state = { project: null, fields: {} };
+      const RATIO_DIMS = { "9:16": [1080, 1920], "16:9": [1920, 1080], "1:1": [1080, 1080] };
 
-      const el = (id) => document.getElementById(id);
+      const state = {
+        template: null,
+        project: null,
+        fields: {},
+        video: { name: null, objectUrl: null, durationMs: 0 },
+        selectedLayerId: null
+      };
+
+      const $ = (id) => document.getElementById(id);
 
       function init() {
-        templates.forEach((t) => {
-          const o = document.createElement("option");
-          o.value = t.id;
-          o.textContent = `${t.name} (${t.aspectRatio})`;
-          el("templateSelect").append(o);
-        });
-
-        el("newBtn").addEventListener("click", createProject);
-        el("downloadBtn").addEventListener("click", downloadProject);
-        el("templateSelect").addEventListener("change", createProject);
-        createProject();
+        renderTemplateOptions();
+        bindEvents();
+        createProjectFromCurrentTemplate();
+        requestAnimationFrame(syncPlaybackUI);
       }
 
-      function createProject() {
-        const template = templates.find((t) => t.id === el("templateSelect").value) || templates[0];
-        const [width, height] = ratioMap[template.aspectRatio] || ratioMap["9:16"];
-        state.fields = Object.fromEntries(template.editableFields.map((f) => [f.id, f.defaultValue]));
+      function renderTemplateOptions() {
+        TEMPLATE_LIBRARY.forEach((template) => {
+          const option = document.createElement("option");
+          option.value = template.id;
+          option.textContent = `${template.name} (${template.aspectRatio})`;
+          $("templateSelect").append(option);
+        });
+      }
+
+      function bindEvents() {
+        $("newProjectBtn").addEventListener("click", createProjectFromCurrentTemplate);
+        $("templateSelect").addEventListener("change", createProjectFromCurrentTemplate);
+        $("projectName").addEventListener("input", () => {
+          if (!state.project) return;
+          state.project.name = $("projectName").value.trim() || "Untitled Project";
+          state.project.updatedAt = new Date().toISOString();
+          syncJsonOutput();
+        });
+
+        $("videoInput").addEventListener("change", handleVideoUpload);
+        $("seek").addEventListener("input", onSeekInput);
+        $("video").addEventListener("timeupdate", updateOverlayVisibilityByTime);
+        $("video").addEventListener("loadedmetadata", onVideoMetadataLoaded);
+
+        $("addOverlayBtn").addEventListener("click", addNewOverlayLayer);
+        $("downloadBtn").addEventListener("click", downloadProjectJson);
+      }
+
+      function createProjectFromCurrentTemplate() {
+        const selectedTemplateId = $("templateSelect").value || TEMPLATE_LIBRARY[0].id;
+        const template = TEMPLATE_LIBRARY.find((t) => t.id === selectedTemplateId) || TEMPLATE_LIBRARY[0];
+        state.template = template;
+        state.fields = Object.fromEntries(template.fields.map((field) => [field.id, field.defaultValue]));
+
+        const [width, height] = RATIO_DIMS[template.aspectRatio] || RATIO_DIMS["9:16"];
+        const now = new Date().toISOString();
 
         state.project = {
           id: `project-${Date.now()}`,
-          name: el("projectName").value.trim() || `${template.name} Project`,
+          name: $("projectName").value.trim() || `${template.name} Project`,
           fps: 30,
           width,
           height,
           durationMs: template.defaultDurationMs,
+          scenes: template.scenes.map((name, idx) => ({ id: `scene-${idx + 1}`, name })),
           tracks: [
-            { id: "track-video", name: "Video", type: "video", clips: [] },
-            { id: "track-overlay", name: "Overlay", type: "overlay", clips: [] }
+            {
+              id: "video-track",
+              name: "Video",
+              type: "video",
+              clips: []
+            },
+            {
+              id: "overlay-track",
+              name: "Overlay",
+              type: "overlay",
+              clips: [
+                {
+                  id: "overlay-clip-1",
+                  startTimeMs: 0,
+                  durationMs: template.defaultDurationMs,
+                  overlays: template.starterOverlays.map((ov, idx) => ({
+                    id: `${ov.id}-${idx}`,
+                    kind: "text",
+                    textField: ov.textField,
+                    startTimeMs: ov.startMs,
+                    endTimeMs: ov.endMs,
+                    style: {
+                      xPercent: ov.x,
+                      yPercent: ov.y,
+                      fontSize: ov.fontSize,
+                      fontWeight: ov.weight,
+                      color: "#ffffff"
+                    }
+                  }))
+                }
+              ]
+            }
           ],
-          template: { id: template.id, name: template.name, aspectRatio: template.aspectRatio },
-          scenes: template.scenes.map((name, i) => ({ id: `scene-${i + 1}`, name })),
           metadata: {
-            createFlow: "local-editor",
+            createFlow: "local-video-editor",
             editableFieldDefaults: { ...state.fields },
-            bulkFieldValues: { ...state.fields }
+            bulkFieldValues: { ...state.fields },
+            videoSource: state.video.name
           },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          createdAt: now,
+          updatedAt: now,
+          template: { id: template.id, name: template.name, aspectRatio: template.aspectRatio }
         };
 
-        renderFields(template.editableFields);
-        renderScenes(template.scenes);
-        renderTimeline(template.defaultDurationMs);
-        sync();
+        state.selectedLayerId = state.project.tracks[1].clips[0].overlays[0]?.id ?? null;
+
+        renderTemplateFields();
+        renderSceneList();
+        renderOverlays();
+        renderLayerList();
+        renderLayerProperties();
+        renderTimeline();
+        updateOverlayVisibilityByTime();
+        syncJsonOutput();
       }
 
-      function renderFields(defs) {
-        const root = el("fields");
+      function handleVideoUpload(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (state.video.objectUrl) URL.revokeObjectURL(state.video.objectUrl);
+        const objectUrl = URL.createObjectURL(file);
+        state.video = { name: file.name, objectUrl, durationMs: state.video.durationMs || 0 };
+
+        const video = $("video");
+        video.src = objectUrl;
+
+        if (state.project) {
+          state.project.tracks[0].clips = [{
+            id: `video-clip-${Date.now()}`,
+            sourceUri: file.name,
+            startTimeMs: 0,
+            durationMs: state.project.durationMs,
+            trimInMs: 0,
+            trimOutMs: state.project.durationMs
+          }];
+          state.project.metadata.videoSource = file.name;
+          state.project.updatedAt = new Date().toISOString();
+          renderTimeline();
+          syncJsonOutput();
+        }
+      }
+
+      function onVideoMetadataLoaded() {
+        const video = $("video");
+        if (!state.project || !Number.isFinite(video.duration) || video.duration <= 0) return;
+
+        const durationMs = Math.round(video.duration * 1000);
+        state.video.durationMs = durationMs;
+        state.project.durationMs = durationMs;
+        const overlayClip = state.project.tracks[1].clips[0];
+        overlayClip.durationMs = durationMs;
+
+        state.project.tracks[0].clips = state.project.tracks[0].clips.map((clip) => ({
+          ...clip,
+          durationMs,
+          trimOutMs: durationMs
+        }));
+
+        state.project.updatedAt = new Date().toISOString();
+        renderTimeline();
+        syncJsonOutput();
+      }
+
+      function renderTemplateFields() {
+        const root = $("templateFields");
         root.innerHTML = "";
-        defs.forEach((field) => {
-          const label = document.createElement("label");
-          label.textContent = field.label;
+
+        state.template.fields.forEach((field) => {
+          const wrapper = document.createElement("label");
+          wrapper.textContent = field.label;
           const input = document.createElement("input");
           input.type = field.type === "color" ? "color" : "text";
           input.value = state.fields[field.id];
@@ -186,55 +400,301 @@
             state.fields[field.id] = input.value;
             state.project.metadata.bulkFieldValues = { ...state.fields };
             state.project.updatedAt = new Date().toISOString();
-            sync();
+            renderOverlays();
+            syncJsonOutput();
           });
+          wrapper.append(input);
+          root.append(wrapper);
+        });
+      }
+
+      function getOverlayList() {
+        return state.project?.tracks?.[1]?.clips?.[0]?.overlays ?? [];
+      }
+
+      function renderOverlays() {
+        const overlayRoot = $("overlayRoot");
+        overlayRoot.innerHTML = "";
+        const overlays = getOverlayList();
+
+        overlays.forEach((overlay) => {
+          const node = document.createElement("div");
+          node.className = `overlay${overlay.id === state.selectedLayerId ? " selected" : ""}`;
+          node.dataset.overlayId = overlay.id;
+          node.style.left = `${overlay.style.xPercent}%`;
+          node.style.top = `${overlay.style.yPercent}%`;
+          node.style.fontSize = `${overlay.style.fontSize}px`;
+          node.style.fontWeight = String(overlay.style.fontWeight);
+          node.style.color = overlay.style.color || "#fff";
+          node.style.borderColor = state.fields.accentColor || "rgba(148,163,184,.35)";
+          node.textContent = overlay.textField ? (state.fields[overlay.textField] || "") : (overlay.text || "");
+
+          node.addEventListener("mousedown", (ev) => startDragOverlay(ev, overlay.id));
+          node.addEventListener("click", () => {
+            state.selectedLayerId = overlay.id;
+            renderOverlays();
+            renderLayerList();
+            renderLayerProperties();
+          });
+
+          overlayRoot.append(node);
+        });
+      }
+
+      function startDragOverlay(mouseDownEvent, overlayId) {
+        mouseDownEvent.preventDefault();
+        const stage = $("stage");
+        const rect = stage.getBoundingClientRect();
+        const overlay = getOverlayList().find((item) => item.id === overlayId);
+        if (!overlay) return;
+
+        const originX = mouseDownEvent.clientX;
+        const originY = mouseDownEvent.clientY;
+        const startX = overlay.style.xPercent;
+        const startY = overlay.style.yPercent;
+
+        const onMove = (moveEvent) => {
+          const dx = ((moveEvent.clientX - originX) / rect.width) * 100;
+          const dy = ((moveEvent.clientY - originY) / rect.height) * 100;
+          overlay.style.xPercent = clamp(startX + dx, 0, 90);
+          overlay.style.yPercent = clamp(startY + dy, 0, 90);
+          state.project.updatedAt = new Date().toISOString();
+          renderOverlays();
+          renderLayerProperties();
+          syncJsonOutput();
+        };
+
+        const onUp = () => {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        };
+
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      }
+
+      function renderSceneList() {
+        const root = $("sceneList");
+        root.innerHTML = "";
+        state.project.scenes.forEach((scene, idx) => {
+          const item = document.createElement("div");
+          item.className = "scene-item";
+          item.textContent = `${idx + 1}. ${scene.name}`;
+          root.append(item);
+        });
+      }
+
+      function renderLayerList() {
+        const root = $("layerList");
+        root.innerHTML = "";
+        const overlays = getOverlayList();
+        overlays.forEach((overlay, idx) => {
+          const item = document.createElement("button");
+          item.className = `layer-item ${overlay.id === state.selectedLayerId ? "active" : ""}`;
+          item.textContent = `${idx + 1}. ${overlay.textField || "custom-text"} (${msToS(overlay.startTimeMs)}-${msToS(overlay.endTimeMs)})`;
+          item.addEventListener("click", () => {
+            state.selectedLayerId = overlay.id;
+            renderLayerList();
+            renderLayerProperties();
+            renderOverlays();
+          });
+          root.append(item);
+        });
+      }
+
+      function renderLayerProperties() {
+        const target = getOverlayList().find((item) => item.id === state.selectedLayerId);
+        const root = $("layerProps");
+        if (!target) {
+          root.textContent = "No layer selected.";
+          return;
+        }
+
+        root.innerHTML = "";
+
+        const makeNumInput = (labelText, value, onUpdate) => {
+          const label = document.createElement("label");
+          label.textContent = labelText;
+          const input = document.createElement("input");
+          input.type = "number";
+          input.value = String(value);
+          input.addEventListener("input", () => onUpdate(Number(input.value || 0)));
           label.append(input);
           root.append(label);
+        };
+
+        makeNumInput("Start ms", target.startTimeMs, (v) => { target.startTimeMs = clamp(v, 0, state.project.durationMs); onLayerMutated(); });
+        makeNumInput("End ms", target.endTimeMs, (v) => { target.endTimeMs = clamp(v, target.startTimeMs + 100, state.project.durationMs); onLayerMutated(); });
+        makeNumInput("Font size", target.style.fontSize, (v) => { target.style.fontSize = clamp(v, 12, 120); onLayerMutated(); });
+
+        const colorLabel = document.createElement("label");
+        colorLabel.textContent = "Text color";
+        const colorInput = document.createElement("input");
+        colorInput.type = "color";
+        colorInput.value = target.style.color || "#ffffff";
+        colorInput.addEventListener("input", () => {
+          target.style.color = colorInput.value;
+          onLayerMutated();
+        });
+        colorLabel.append(colorInput);
+        root.append(colorLabel);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "ghost";
+        deleteBtn.textContent = "Delete layer";
+        deleteBtn.addEventListener("click", () => {
+          const overlays = getOverlayList();
+          const index = overlays.findIndex((ov) => ov.id === target.id);
+          if (index >= 0) overlays.splice(index, 1);
+          state.selectedLayerId = overlays[0]?.id ?? null;
+          onLayerMutated();
+        });
+        root.append(deleteBtn);
+      }
+
+      function onLayerMutated() {
+        state.project.updatedAt = new Date().toISOString();
+        renderLayerList();
+        renderLayerProperties();
+        renderOverlays();
+        renderTimeline();
+        updateOverlayVisibilityByTime();
+        syncJsonOutput();
+      }
+
+      function addNewOverlayLayer() {
+        const text = $("newOverlayText").value.trim();
+        if (!text || !state.project) return;
+
+        const overlays = getOverlayList();
+        const layer = {
+          id: `ov-custom-${Date.now()}`,
+          kind: "text",
+          text,
+          startTimeMs: 0,
+          endTimeMs: Math.min(6000, state.project.durationMs),
+          style: {
+            xPercent: 15,
+            yPercent: 30,
+            fontSize: 28,
+            fontWeight: 700,
+            color: "#ffffff"
+          }
+        };
+
+        overlays.push(layer);
+        state.selectedLayerId = layer.id;
+        onLayerMutated();
+      }
+
+      function renderTimeline() {
+        const track = $("timelineTrack");
+        track.querySelectorAll(".clip").forEach((node) => node.remove());
+
+        const duration = Math.max(state.project.durationMs, 1);
+        const videoClip = state.project.tracks[0].clips[0];
+        if (videoClip) {
+          const node = document.createElement("div");
+          node.className = "clip";
+          node.style.left = "0%";
+          node.style.width = "100%";
+          node.style.background = "#2563eb";
+          node.textContent = `Video: ${videoClip.sourceUri}`;
+          track.append(node);
+        }
+
+        getOverlayList().forEach((ov) => {
+          const node = document.createElement("div");
+          node.className = "clip";
+          node.style.left = `${(ov.startTimeMs / duration) * 100}%`;
+          node.style.width = `${((ov.endTimeMs - ov.startTimeMs) / duration) * 100}%`;
+          node.style.top = "22px";
+          node.style.bottom = "4px";
+          node.style.height = "16px";
+          node.style.padding = "1px 4px";
+          node.style.background = ov.id === state.selectedLayerId ? "#0ea5e9" : "#1e40af";
+          node.textContent = ov.textField || "text";
+          track.append(node);
         });
       }
 
-      function renderScenes(sceneNames) {
-        const root = el("scenes");
-        root.innerHTML = "";
-        sceneNames.forEach((name, i) => {
-          const d = document.createElement("div");
-          d.className = "scene";
-          d.textContent = `${i + 1}. ${name}`;
-          root.append(d);
+      function onSeekInput() {
+        const video = $("video");
+        const seek = Number($("seek").value);
+        if (video.duration && Number.isFinite(video.duration)) {
+          video.currentTime = seek * video.duration;
+        } else {
+          updateTimeLabel(seek * (state.project.durationMs / 1000), state.project.durationMs / 1000);
+          updatePlayhead(seek);
+          updateOverlayVisibilityByTime();
+        }
+      }
+
+      function syncPlaybackUI() {
+        const video = $("video");
+        const seek = $("seek");
+
+        let ratio = 0;
+        let current = 0;
+        let total = state.project?.durationMs ? state.project.durationMs / 1000 : 0;
+
+        if (video.duration && Number.isFinite(video.duration)) {
+          total = video.duration;
+          current = video.currentTime;
+          ratio = total > 0 ? current / total : 0;
+        } else if (state.project) {
+          ratio = Number(seek.value);
+          current = ratio * total;
+        }
+
+        seek.value = String(clamp(ratio, 0, 1));
+        updateTimeLabel(current, total);
+        updatePlayhead(ratio);
+        updateOverlayVisibilityByTime();
+
+        requestAnimationFrame(syncPlaybackUI);
+      }
+
+      function updateTimeLabel(currentS, totalS) {
+        $("timeLabel").textContent = `${currentS.toFixed(2)}s / ${totalS.toFixed(2)}s`;
+      }
+
+      function updatePlayhead(ratio) {
+        $("playhead").style.left = `${clamp(ratio, 0, 1) * 100}%`;
+      }
+
+      function updateOverlayVisibilityByTime() {
+        const video = $("video");
+        const currentMs = (video.duration && Number.isFinite(video.duration))
+          ? Math.round(video.currentTime * 1000)
+          : Math.round(Number($("seek").value) * state.project.durationMs);
+
+        const overlays = getOverlayList();
+        overlays.forEach((overlay) => {
+          const node = document.querySelector(`.overlay[data-overlay-id="${overlay.id}"]`);
+          if (!node) return;
+          const active = currentMs >= overlay.startTimeMs && currentMs <= overlay.endTimeMs;
+          node.style.display = active ? "block" : "none";
         });
       }
 
-      function renderTimeline(durationMs) {
-        const root = el("timeline");
-        root.innerHTML = "";
-        const checkpoints = [0, durationMs * 0.25, durationMs * 0.5, durationMs * 0.75, durationMs];
-        checkpoints.forEach((ms) => {
-          const d = document.createElement("div");
-          d.className = "tick";
-          d.textContent = `${Math.round(ms / 1000)}s`;
-          root.append(d);
-        });
+      function syncJsonOutput() {
+        $("output").textContent = JSON.stringify(state.project, null, 2);
       }
 
-      function sync() {
-        el("previewTitle").textContent = state.fields.title || "Title";
-        el("previewSubtitle").textContent = state.fields.subtitle || "Subtitle";
-        el("previewCta").textContent = state.fields.cta || "CTA";
-        el("previewCta").style.borderColor = state.fields.accentColor || "#38bdf8";
-        el("previewTitle").style.color = state.fields.accentColor || "#f8fafc";
-        el("output").textContent = JSON.stringify(state.project, null, 2);
-      }
-
-      function downloadProject() {
+      function downloadProjectJson() {
         if (!state.project) return;
         const blob = new Blob([JSON.stringify(state.project, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${state.project.name.replace(/\s+/g, "-").toLowerCase()}.json`;
+        a.download = `${state.project.name.replace(/\s+/g, "-").toLowerCase() || "project"}.json`;
         a.click();
         URL.revokeObjectURL(url);
       }
+
+      function msToS(ms) { return `${(ms / 1000).toFixed(1)}s`; }
+      function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
 
       init();
     </script>
