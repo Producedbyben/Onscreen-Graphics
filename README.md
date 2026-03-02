@@ -11,6 +11,10 @@ From the repo root:
 - `npm run typecheck` — run type checks across all workspaces.
 - `npm run build` — build every workspace package/app.
 
+For a server-free local experience:
+
+- `run-local.html` — open this file directly in Chrome for a no-server local editor-style interface (canvas preview, scenes, timeline, JSON export; no `npm install` required).
+
 You can also run package-specific scripts:
 
 - `npm --workspace @onscreen/core run build`
