@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Onscreen Graphics Studio</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #0b1120;
+        color: #dbe7ff;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 280px minmax(480px, 1fr) 320px;
+        height: 100vh;
+      }
+      .panel {
+        border-right: 1px solid #25304d;
+        background: #111a2e;
+        overflow: auto;
+      }
+      .panel.right { border-right: none; border-left: 1px solid #25304d; }
+      .panel-section {
+        padding: 14px;
+        border-bottom: 1px solid #25304d;
+      }
+      h1, h2, h3 { margin: 0 0 10px; }
+      h1 { font-size: 1rem; }
+      h2 { font-size: 0.95rem; color: #9ab2ff; }
+      .muted { color: #9cb0df; font-size: 0.85rem; }
+      .workspace {
+        display: grid;
+        grid-template-rows: 1fr 190px;
+        min-width: 0;
+      }
+      .stage-wrap {
+        padding: 16px;
+        min-width: 0;
+      }
+      .stage {
+        position: relative;
+        width: min(100%, 920px);
+        aspect-ratio: 16 / 9;
+        margin: 0 auto;
+        background: #020617;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #334155;
+      }
+      #videoPreview {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: #000;
+      }
+      #overlayLayer {
+        position: absolute;
+        inset: 0;
+      }
+      .overlay-item {
+        position: absolute;
+        border: 1px dashed transparent;
+        cursor: move;
+        user-select: none;
+        white-space: pre-wrap;
+      }
+      .overlay-item.selected {
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 2px rgba(96,165,250,.35);
+      }
+      .overlay-text {
+        padding: 6px 10px;
+        font-weight: 700;
+      }
+      .overlay-box {
+        border-radius: 10px;
+      }
+      .toolbar {
+        display: grid;
+        gap: 8px;
+      }
+      button, input, select, textarea {
+        width: 100%;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        background: #0f172a;
+        color: inherit;
+        padding: 9px;
+        font: inherit;
+      }
+      button { cursor: pointer; background: #1d4ed8; border-color: #1e40af; font-weight: 600; }
+      button.secondary { background: #1f2937; border-color: #374151; }
+      button.ghost { background: transparent; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .timeline {
+        border-top: 1px solid #25304d;
+        background: #0d1527;
+        padding: 10px;
+      }
+      .timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+      .timeline-track {
+        position: relative;
+        height: 90px;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        background: linear-gradient(90deg, #0f172a 0, #0f172a 10px, #111827 10px, #111827 20px);
+        background-size: 20px 100%;
+        overflow: hidden;
+      }
+      .clip {
+        position: absolute;
+        top: 10px;
+        height: 28px;
+        border-radius: 6px;
+        background: #334155;
+      }
+      .overlay-clip {
+        position: absolute;
+        top: 50px;
+        height: 28px;
+        border-radius: 6px;
+        background: #2563eb;
+        border: 1px solid #1d4ed8;
+        color: #dbeafe;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 6px;
+        overflow: hidden;
+      }
+      .playhead {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #f97316;
+      }
+      .overlay-list { display: grid; gap: 8px; }
+      .overlay-row {
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 8px;
+        background: #0f172a;
+      }
+      .overlay-row.active { border-color: #60a5fa; }
+      .overlay-row-head { display:flex; justify-content:space-between; gap:8px; margin-bottom:6px; }
+      .tiny { font-size: 0.75rem; color: #95a8d6; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="panel">
+        <section class="panel-section">
+          <h1>🎬 Onscreen Graphics Studio</h1>
+          <p class="muted">Canva-like local editor for quick social graphics over video.</p>
+        </section>
+        <section class="panel-section">
+          <h2>Project</h2>
+          <div class="toolbar">
+            <label>Template<select id="templateSelect"></select></label>
+            <label>Project Name<input id="projectName" value="My Social Clip" /></label>
+            <label>Video Upload<input id="videoUpload" type="file" accept="video/mp4,video/*" /></label>
+            <button id="newFromTemplate">New from template</button>
+          </div>
+        </section>
+        <section class="panel-section">
+          <h2>Quick Add</h2>
+          <div class="toolbar">
+            <button id="addTitle">Add Title Text</button>
+            <button id="addSubtitle" class="secondary">Add Subtitle</button>
+            <button id="addBox" class="secondary">Add Graphic Box</button>
+            <button id="duplicate" class="ghost">Duplicate Selected</button>
+            <button id="delete" class="ghost">Delete Selected</button>
+          </div>
+        </section>
+        <section class="panel-section">
+          <h2>Export</h2>
+          <button id="exportJson">Export Project JSON</button>
+          <pre id="exportOutput" class="tiny"></pre>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <div class="stage-wrap">
+          <div class="stage" id="stage">
+            <video id="videoPreview" controls></video>
+            <div id="overlayLayer"></div>
+          </div>
+        </div>
+        <section class="timeline">
+          <div class="timeline-header">
+            <strong>Timeline</strong>
+            <span class="tiny" id="timeReadout">0.00s / 15.00s</span>
+          </div>
+          <div class="timeline-track" id="timelineTrack">
+            <div class="clip" id="videoClip"></div>
+            <div class="playhead" id="playhead"></div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="panel right">
+        <section class="panel-section">
+          <h2>Layer List</h2>
+          <div id="overlayList" class="overlay-list"></div>
+        </section>
+        <section class="panel-section">
+          <h2>Selected Layer</h2>
+          <div id="inspector" class="toolbar muted">Select a layer to edit.</div>
+        </section>
+      </aside>
+    </div>
+
+    <script type="module">
+      const state = {
+        templates: [],
+        project: null,
+        selectedId: null,
+        videoDuration: 15,
+        dragging: null
+      };
+
+      const el = {
+        templateSelect: document.querySelector('#templateSelect'),
+        projectName: document.querySelector('#projectName'),
+        videoUpload: document.querySelector('#videoUpload'),
+        newFromTemplate: document.querySelector('#newFromTemplate'),
+        addTitle: document.querySelector('#addTitle'),
+        addSubtitle: document.querySelector('#addSubtitle'),
+        addBox: document.querySelector('#addBox'),
+        duplicate: document.querySelector('#duplicate'),
+        delete: document.querySelector('#delete'),
+        exportJson: document.querySelector('#exportJson'),
+        exportOutput: document.querySelector('#exportOutput'),
+        video: document.querySelector('#videoPreview'),
+        overlayLayer: document.querySelector('#overlayLayer'),
+        overlayList: document.querySelector('#overlayList'),
+        inspector: document.querySelector('#inspector'),
+        timelineTrack: document.querySelector('#timelineTrack'),
+        videoClip: document.querySelector('#videoClip'),
+        playhead: document.querySelector('#playhead'),
+        timeReadout: document.querySelector('#timeReadout'),
+        stage: document.querySelector('#stage')
+      };
+
+      function uid(prefix='overlay') { return `${prefix}-${Math.random().toString(36).slice(2, 9)}`; }
+      function pct(ms) { return (ms / (state.videoDuration * 1000)) * 100; }
+      function currentClip() { return state.project?.tracks?.[0]?.clips?.[0]; }
+      function overlays() { return currentClip()?.overlays ?? []; }
+
+      async function loadTemplates() {
+        const res = await fetch('/api/templates');
+        const data = await res.json();
+        state.templates = data.templates;
+        el.templateSelect.innerHTML = '';
+        for (const t of state.templates) {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = `${t.name} • ${t.aspectRatio}`;
+          el.templateSelect.append(opt);
+        }
+      }
+
+      async function newProjectFromTemplate() {
+        const res = await fetch('/api/projects/from-template', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ templateId: el.templateSelect.value, projectName: el.projectName.value })
+        });
+        const data = await res.json();
+        state.project = data.project;
+        state.videoDuration = Math.max(1, (state.project.durationMs || 15000) / 1000);
+        state.selectedId = null;
+        renderAll();
+      }
+
+      function addOverlay(kind) {
+        const clip = currentClip();
+        if (!clip) return;
+        const base = {
+          id: uid(),
+          layer: overlays().length + 1,
+          startTimeMs: Math.max(0, Math.floor(el.video.currentTime * 1000)),
+          endTimeMs: Math.min(Math.floor(state.videoDuration * 1000), Math.floor(el.video.currentTime * 1000) + 3000),
+          keyframes: [],
+          position: { x: 18, y: 20 },
+          size: { w: 36, h: 14 },
+          style: { opacity: 1, animation: 'none' }
+        };
+
+        if (kind === 'text') {
+          clip.overlays.push({ ...base, kind: 'text', text: 'Your Title', style: { ...base.style, fontSize: 56, color: '#FFFFFF', backgroundColor: 'rgba(0,0,0,0.25)', animation: 'fade-in' }});
+        } else if (kind === 'subtitle') {
+          clip.overlays.push({ ...base, kind: 'text', text: 'Tap to edit subtitle', style: { ...base.style, fontSize: 34, color: '#E2E8F0', backgroundColor: 'rgba(15,23,42,0.5)', animation: 'slide-up' }, position: { x: 20, y: 70 } });
+        } else {
+          clip.overlays.push({ ...base, kind: 'shape', text: 'Graphic', style: { ...base.style, color: '#0F172A', backgroundColor: '#38BDF8', borderRadius: 12, fontSize: 28, animation: 'pop' } });
+        }
+
+        state.selectedId = clip.overlays.at(-1).id;
+        renderAll();
+      }
+
+      function selectOverlay(id) {
+        state.selectedId = id;
+        renderAll();
+      }
+
+      function removeSelected() {
+        const clip = currentClip();
+        if (!clip || !state.selectedId) return;
+        clip.overlays = clip.overlays.filter((o) => o.id !== state.selectedId);
+        state.selectedId = null;
+        renderAll();
+      }
+
+      function duplicateSelected() {
+        const clip = currentClip();
+        const src = overlays().find((o) => o.id === state.selectedId);
+        if (!clip || !src) return;
+        const copy = JSON.parse(JSON.stringify(src));
+        copy.id = uid();
+        copy.position.x = Math.min(90, (copy.position.x ?? 10) + 4);
+        copy.position.y = Math.min(90, (copy.position.y ?? 10) + 4);
+        clip.overlays.push(copy);
+        state.selectedId = copy.id;
+        renderAll();
+      }
+
+      function updateInspector() {
+        const item = overlays().find((o) => o.id === state.selectedId);
+        if (!item) {
+          el.inspector.className = 'toolbar muted';
+          el.inspector.textContent = 'Select a layer to edit.';
+          return;
+        }
+
+        el.inspector.className = 'toolbar';
+        el.inspector.innerHTML = `
+          <label>Text
+            <textarea id="insText" rows="2">${item.text ?? ''}</textarea>
+          </label>
+          <div class="row">
+            <label>Color<input id="insColor" type="color" value="${toHex(item.style.color || '#ffffff')}" /></label>
+            <label>Background<input id="insBg" type="color" value="${toHex(item.style.backgroundColor || '#1e293b')}" /></label>
+          </div>
+          <div class="row">
+            <label>Font Size<input id="insSize" type="range" min="16" max="120" value="${item.style.fontSize ?? 48}" /></label>
+            <label>Animation
+              <select id="insAnim">
+                ${['none','fade-in','slide-up','slide-left','pop'].map((a)=>`<option value="${a}" ${item.style.animation===a?'selected':''}>${a}</option>`).join('')}
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label>Start (ms)<input id="insStart" type="number" min="0" value="${item.startTimeMs}" /></label>
+            <label>End (ms)<input id="insEnd" type="number" min="1" value="${item.endTimeMs}" /></label>
+          </div>
+        `;
+
+        const set = (id, fn, ev='input') => el.inspector.querySelector(`#${id}`)?.addEventListener(ev, fn);
+        set('insText', (e) => { item.text = e.target.value; renderCanvas(); renderOverlayList(); });
+        set('insColor', (e) => { item.style.color = e.target.value; renderCanvas(); });
+        set('insBg', (e) => { item.style.backgroundColor = e.target.value; renderCanvas(); });
+        set('insSize', (e) => { item.style.fontSize = Number(e.target.value); renderCanvas(); });
+        set('insAnim', (e) => { item.style.animation = e.target.value; renderCanvas(); });
+        set('insStart', (e) => { item.startTimeMs = clamp(Number(e.target.value), 0, item.endTimeMs - 100); renderAll(); });
+        set('insEnd', (e) => { item.endTimeMs = clamp(Number(e.target.value), item.startTimeMs + 100, state.videoDuration * 1000); renderAll(); });
+      }
+
+      function renderCanvas() {
+        const nowMs = Math.floor(el.video.currentTime * 1000);
+        el.overlayLayer.innerHTML = '';
+        for (const o of overlays()) {
+          const visible = nowMs >= o.startTimeMs && nowMs <= o.endTimeMs;
+          const node = document.createElement('div');
+          node.className = `overlay-item ${o.kind === 'text' ? 'overlay-text' : 'overlay-box'} ${o.id === state.selectedId ? 'selected' : ''}`;
+          node.style.left = `${o.position?.x ?? 15}%`;
+          node.style.top = `${o.position?.y ?? 15}%`;
+          node.style.width = `${o.size?.w ?? 40}%`;
+          node.style.height = `${o.size?.h ?? 14}%`;
+          node.style.display = visible ? 'flex' : 'none';
+          node.style.alignItems = 'center';
+          node.style.justifyContent = 'center';
+          node.style.color = o.style.color || '#fff';
+          node.style.background = o.style.backgroundColor || 'rgba(0,0,0,.35)';
+          node.style.fontSize = `${o.style.fontSize ?? 48}px`;
+          node.style.opacity = `${o.style.opacity ?? 1}`;
+          node.style.borderRadius = `${o.style.borderRadius ?? 8}px`;
+          node.textContent = o.text ?? '';
+          applyAnimation(node, o.style.animation || 'none', nowMs - o.startTimeMs);
+
+          node.addEventListener('mousedown', (evt) => {
+            evt.preventDefault();
+            selectOverlay(o.id);
+            const rect = el.stage.getBoundingClientRect();
+            state.dragging = {
+              id: o.id,
+              offsetX: evt.clientX - rect.left - ((o.position.x / 100) * rect.width),
+              offsetY: evt.clientY - rect.top - ((o.position.y / 100) * rect.height)
+            };
+          });
+          node.addEventListener('click', () => selectOverlay(o.id));
+          el.overlayLayer.append(node);
+        }
+      }
+
+      function renderOverlayList() {
+        el.overlayList.innerHTML = '';
+        overlays().forEach((o) => {
+          const row = document.createElement('div');
+          row.className = `overlay-row ${o.id === state.selectedId ? 'active' : ''}`;
+          row.innerHTML = `
+            <div class="overlay-row-head">
+              <strong>${o.text ? o.text.slice(0, 20) : o.kind}</strong>
+              <span class="tiny">L${o.layer}</span>
+            </div>
+            <div class="tiny">${(o.startTimeMs / 1000).toFixed(2)}s → ${(o.endTimeMs / 1000).toFixed(2)}s</div>
+          `;
+          row.addEventListener('click', () => selectOverlay(o.id));
+          el.overlayList.append(row);
+        });
+      }
+
+      function renderTimeline() {
+        const durationMs = state.videoDuration * 1000;
+        el.videoClip.style.left = '0%';
+        el.videoClip.style.width = '100%';
+
+        el.timelineTrack.querySelectorAll('.overlay-clip').forEach((n) => n.remove());
+        overlays().forEach((o) => {
+          const clip = document.createElement('div');
+          clip.className = 'overlay-clip';
+          clip.style.left = `${pct(o.startTimeMs)}%`;
+          clip.style.width = `${Math.max(2, pct(o.endTimeMs - o.startTimeMs))}%`;
+          clip.textContent = o.text ? o.text.slice(0, 16) : o.kind;
+          clip.addEventListener('click', () => selectOverlay(o.id));
+          el.timelineTrack.append(clip);
+        });
+
+        const nowMs = Math.floor(el.video.currentTime * 1000);
+        el.playhead.style.left = `${pct(nowMs)}%`;
+        el.timeReadout.textContent = `${(nowMs / 1000).toFixed(2)}s / ${(durationMs / 1000).toFixed(2)}s`;
+      }
+
+      function renderAll() {
+        renderCanvas();
+        renderOverlayList();
+        renderTimeline();
+        updateInspector();
+      }
+
+      function applyAnimation(node, anim, elapsed) {
+        const t = Math.max(0, Math.min(1, elapsed / 450));
+        if (anim === 'fade-in') {
+          node.style.opacity = `${t}`;
+        } else if (anim === 'slide-up') {
+          node.style.transform = `translateY(${(1 - t) * 24}px)`;
+          node.style.opacity = `${Math.max(0.35, t)}`;
+        } else if (anim === 'slide-left') {
+          node.style.transform = `translateX(${(1 - t) * 24}px)`;
+          node.style.opacity = `${Math.max(0.35, t)}`;
+        } else if (anim === 'pop') {
+          node.style.transform = `scale(${0.85 + 0.15 * t})`;
+          node.style.opacity = `${Math.max(0.45, t)}`;
+        }
+      }
+
+      function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+      function toHex(value) {
+        if (!value) return '#ffffff';
+        if (value.startsWith('#')) return value;
+        const m = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+        if (!m) return '#ffffff';
+        return '#' + m.slice(1, 4).map((x) => Number(x).toString(16).padStart(2, '0')).join('');
+      }
+
+      el.newFromTemplate.addEventListener('click', newProjectFromTemplate);
+      el.addTitle.addEventListener('click', () => addOverlay('text'));
+      el.addSubtitle.addEventListener('click', () => addOverlay('subtitle'));
+      el.addBox.addEventListener('click', () => addOverlay('box'));
+      el.delete.addEventListener('click', removeSelected);
+      el.duplicate.addEventListener('click', duplicateSelected);
+      el.exportJson.addEventListener('click', () => {
+        el.exportOutput.textContent = JSON.stringify(state.project, null, 2);
+      });
+
+      el.videoUpload.addEventListener('change', () => {
+        const file = el.videoUpload.files?.[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        el.video.src = url;
+        el.video.load();
+      });
+
+      el.video.addEventListener('loadedmetadata', () => {
+        if (Number.isFinite(el.video.duration) && el.video.duration > 0) {
+          state.videoDuration = el.video.duration;
+          if (state.project) state.project.durationMs = Math.floor(state.videoDuration * 1000);
+          renderAll();
+        }
+      });
+
+      el.video.addEventListener('timeupdate', () => {
+        renderCanvas();
+        renderTimeline();
+      });
+
+      document.addEventListener('mousemove', (evt) => {
+        if (!state.dragging) return;
+        const item = overlays().find((o) => o.id === state.dragging.id);
+        if (!item) return;
+        const rect = el.stage.getBoundingClientRect();
+        const px = evt.clientX - rect.left - state.dragging.offsetX;
+        const py = evt.clientY - rect.top - state.dragging.offsetY;
+        item.position.x = clamp((px / rect.width) * 100, 0, 100 - (item.size?.w ?? 20));
+        item.position.y = clamp((py / rect.height) * 100, 0, 100 - (item.size?.h ?? 10));
+        renderCanvas();
+      });
+      document.addEventListener('mouseup', () => { state.dragging = null; });
+
+      el.timelineTrack.addEventListener('click', (evt) => {
+        const rect = el.timelineTrack.getBoundingClientRect();
+        const ratio = clamp((evt.clientX - rect.left) / rect.width, 0, 1);
+        el.video.currentTime = ratio * state.videoDuration;
+      });
+
+      await loadTemplates();
+      await newProjectFromTemplate();
+      addOverlay('text');
+      addOverlay('subtitle');
+    </script>
+  </body>
+</html>
