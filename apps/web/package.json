@@ -1,0 +1,15 @@
+{
+  "name": "@onscreen/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/index.js",
+    "build": "echo \"web build placeholder\"",
+    "typecheck": "echo \"web typecheck placeholder\""
+  },
+  "dependencies": {
+    "@onscreen/core": "0.1.0",
+    "@onscreen/template-library": "0.1.0"
+  }
+}
