@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Onscreen Graphics Local Editor</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #0b1220; color: #e2e8f0; }
+      .app { display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh; }
+      header { border-bottom: 1px solid #233048; padding: 14px 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      h1 { margin: 0; font-size: 1.1rem; }
+      .badge { background: #12355e; color: #93c5fd; border: 1px solid #1d4b80; border-radius: 999px; padding: 4px 10px; font-size: .75rem; }
+      .editor { display: grid; grid-template-columns: 300px 1fr 320px; gap: 14px; padding: 14px; }
+      .panel { background: #111b30; border: 1px solid #24324b; border-radius: 12px; padding: 12px; min-height: 0; }
+      .panel h2 { margin: 0 0 10px; font-size: .95rem; color: #bfdbfe; }
+      label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; margin-bottom: 10px; }
+      input, select, button, textarea { background: #0a1426; border: 1px solid #304361; color: #e2e8f0; border-radius: 8px; padding: 9px; font: inherit; }
+      button { cursor: pointer; background: #0369a1; border-color: #075985; font-weight: 600; }
+      button.secondary { background: #13233b; }
+      .canvas-wrap { display: grid; place-items: center; height: 100%; min-height: 360px; }
+      .canvas { width: min(330px, 90%); aspect-ratio: 9 / 16; border-radius: 18px; border: 2px solid #334155; position: relative; overflow: hidden; background: linear-gradient(180deg, #1e293b, #0f172a); }
+      .safe { position: absolute; inset: 8%; border: 1px dashed #64748b; border-radius: 10px; }
+      .title { position: absolute; top: 14%; left: 10%; right: 10%; font-size: 1.3rem; font-weight: 700; }
+      .subtitle { position: absolute; top: 24%; left: 10%; right: 10%; color: #cbd5e1; font-size: .95rem; }
+      .cta { position: absolute; bottom: 12%; left: 10%; right: 10%; background: rgba(15,23,42,.65); border: 1px solid #334155; border-radius: 10px; padding: 8px 10px; }
+      .scene-list, .timeline { display: grid; gap: 8px; }
+      .scene, .tick { border: 1px solid #2c3f5e; background: #0d172b; border-radius: 8px; padding: 8px; font-size: .82rem; }
+      pre { margin: 0; max-height: 220px; overflow: auto; font-size: .75rem; background: #07101d; border: 1px solid #233048; border-radius: 8px; padding: 10px; }
+      footer { border-top: 1px solid #233048; padding: 10px 14px; font-size: .82rem; color: #94a3b8; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Onscreen Graphics Local Editor</h1>
+        <span class="badge">Open this file directly in Chrome · no server needed</span>
+      </header>
+
+      <main class="editor">
+        <section class="panel">
+          <h2>Project Setup</h2>
+          <label>Template <select id="templateSelect"></select></label>
+          <label>Project name <input id="projectName" value="My Local Project" /></label>
+          <div style="display:flex; gap:8px; margin: 10px 0 14px;">
+            <button id="newBtn">New project</button>
+            <button id="downloadBtn" class="secondary">Download JSON</button>
+          </div>
+
+          <h2>Editable Fields</h2>
+          <div id="fields"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Canvas Preview (Canva-style workspace)</h2>
+          <div class="canvas-wrap">
+            <div class="canvas" id="canvas">
+              <div class="safe"></div>
+              <div class="title" id="previewTitle"></div>
+              <div class="subtitle" id="previewSubtitle"></div>
+              <div class="cta" id="previewCta"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Scenes</h2>
+          <div class="scene-list" id="scenes"></div>
+          <h2 style="margin-top:14px;">Timeline</h2>
+          <div class="timeline" id="timeline"></div>
+        </section>
+      </main>
+
+      <footer>
+        <strong>Export JSON</strong>
+        <pre id="output"></pre>
+      </footer>
+    </div>
+
+    <script>
+      const templates = [
+        {
+          id: "ranking-videos-vertical",
+          name: "Ranking Videos (Vertical)",
+          aspectRatio: "9:16",
+          defaultDurationMs: 30000,
+          editableFields: [
+            { id: "title", label: "Title", defaultValue: "Top 10 Plays" },
+            { id: "subtitle", label: "Subtitle", defaultValue: "Season Highlights" },
+            { id: "cta", label: "Call to Action", defaultValue: "Watch until #1" },
+            { id: "accentColor", label: "Accent Color", defaultValue: "#FF4D6D", type: "color" }
+          ],
+          scenes: ["Intro", "Ranking Sequence", "Outro"]
+        },
+        {
+          id: "live-scoreboard-vertical",
+          name: "Live Scoreboard (Vertical)",
+          aspectRatio: "9:16",
+          defaultDurationMs: 20000,
+          editableFields: [
+            { id: "title", label: "Match Label", defaultValue: "Match Day" },
+            { id: "subtitle", label: "Home vs Away", defaultValue: "Home Team vs Away Team" },
+            { id: "cta", label: "Footer", defaultValue: "Live updates every minute" },
+            { id: "accentColor", label: "Primary Color", defaultValue: "#0EA5E9", type: "color" }
+          ],
+          scenes: ["Pre-game", "Live Update", "Final Score"]
+        },
+        {
+          id: "countdown-list-vertical",
+          name: "Countdown List (Vertical)",
+          aspectRatio: "9:16",
+          defaultDurationMs: 25000,
+          editableFields: [
+            { id: "title", label: "Headline", defaultValue: "5 Things You Need to Know" },
+            { id: "subtitle", label: "Subheadline", defaultValue: "Quick countdown format" },
+            { id: "cta", label: "CTA", defaultValue: "Follow for part 2" },
+            { id: "accentColor", label: "Highlight Color", defaultValue: "#F59E0B", type: "color" }
+          ],
+          scenes: ["Hook", "Countdown", "CTA"]
+        }
+      ];
+
+      const ratioMap = { "9:16": [1080, 1920], "16:9": [1920, 1080], "1:1": [1080, 1080] };
+      const state = { project: null, fields: {} };
+
+      const el = (id) => document.getElementById(id);
+
+      function init() {
+        templates.forEach((t) => {
+          const o = document.createElement("option");
+          o.value = t.id;
+          o.textContent = `${t.name} (${t.aspectRatio})`;
+          el("templateSelect").append(o);
+        });
+
+        el("newBtn").addEventListener("click", createProject);
+        el("downloadBtn").addEventListener("click", downloadProject);
+        el("templateSelect").addEventListener("change", createProject);
+        createProject();
+      }
+
+      function createProject() {
+        const template = templates.find((t) => t.id === el("templateSelect").value) || templates[0];
+        const [width, height] = ratioMap[template.aspectRatio] || ratioMap["9:16"];
+        state.fields = Object.fromEntries(template.editableFields.map((f) => [f.id, f.defaultValue]));
+
+        state.project = {
+          id: `project-${Date.now()}`,
+          name: el("projectName").value.trim() || `${template.name} Project`,
+          fps: 30,
+          width,
+          height,
+          durationMs: template.defaultDurationMs,
+          tracks: [
+            { id: "track-video", name: "Video", type: "video", clips: [] },
+            { id: "track-overlay", name: "Overlay", type: "overlay", clips: [] }
+          ],
+          template: { id: template.id, name: template.name, aspectRatio: template.aspectRatio },
+          scenes: template.scenes.map((name, i) => ({ id: `scene-${i + 1}`, name })),
+          metadata: {
+            createFlow: "local-editor",
+            editableFieldDefaults: { ...state.fields },
+            bulkFieldValues: { ...state.fields }
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        renderFields(template.editableFields);
+        renderScenes(template.scenes);
+        renderTimeline(template.defaultDurationMs);
+        sync();
+      }
+
+      function renderFields(defs) {
+        const root = el("fields");
+        root.innerHTML = "";
+        defs.forEach((field) => {
+          const label = document.createElement("label");
+          label.textContent = field.label;
+          const input = document.createElement("input");
+          input.type = field.type === "color" ? "color" : "text";
+          input.value = state.fields[field.id];
+          input.addEventListener("input", () => {
+            state.fields[field.id] = input.value;
+            state.project.metadata.bulkFieldValues = { ...state.fields };
+            state.project.updatedAt = new Date().toISOString();
+            sync();
+          });
+          label.append(input);
+          root.append(label);
+        });
+      }
+
+      function renderScenes(sceneNames) {
+        const root = el("scenes");
+        root.innerHTML = "";
+        sceneNames.forEach((name, i) => {
+          const d = document.createElement("div");
+          d.className = "scene";
+          d.textContent = `${i + 1}. ${name}`;
+          root.append(d);
+        });
+      }
+
+      function renderTimeline(durationMs) {
+        const root = el("timeline");
+        root.innerHTML = "";
+        const checkpoints = [0, durationMs * 0.25, durationMs * 0.5, durationMs * 0.75, durationMs];
+        checkpoints.forEach((ms) => {
+          const d = document.createElement("div");
+          d.className = "tick";
+          d.textContent = `${Math.round(ms / 1000)}s`;
+          root.append(d);
+        });
+      }
+
+      function sync() {
+        el("previewTitle").textContent = state.fields.title || "Title";
+        el("previewSubtitle").textContent = state.fields.subtitle || "Subtitle";
+        el("previewCta").textContent = state.fields.cta || "CTA";
+        el("previewCta").style.borderColor = state.fields.accentColor || "#38bdf8";
+        el("previewTitle").style.color = state.fields.accentColor || "#f8fafc";
+        el("output").textContent = JSON.stringify(state.project, null, 2);
+      }
+
+      function downloadProject() {
+        if (!state.project) return;
+        const blob = new Blob([JSON.stringify(state.project, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${state.project.name.replace(/\s+/g, "-").toLowerCase()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      init();
+    </script>
+  </body>
+</html>
