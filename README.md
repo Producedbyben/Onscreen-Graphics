@@ -13,7 +13,7 @@ From the repo root:
 
 For a server-free local experience:
 
-- `run-local.html` — open this file directly in Chrome for a no-server local video editor (template picker, video upload preview, draggable text layers, add-layer-at-playhead controls with on-entry animations, timeline visibility windows, scenes, and JSON export; no `npm install` required).
+- `run-local.html` — open this file directly in Chrome for a no-server local video editor (template picker, video upload preview, draggable text layers, add-layer-at-playhead controls (including per-field quick-add buttons) with on-entry animations, timeline visibility windows, scenes, and JSON export; no `npm install` required).
 
 You can also run package-specific scripts:
 

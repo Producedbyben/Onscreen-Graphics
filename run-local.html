@@ -53,6 +53,8 @@
       button.ghost { background: transparent; border-color: #3a4f72; }
       .row { display: flex; gap: 8px; flex-wrap: wrap; }
       .stack { display: grid; gap: 8px; }
+      .field-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+      .mini-btn { padding: 8px 10px; font-size: .74rem; line-height: 1; white-space: nowrap; }
 
       .stage-wrap { display: grid; place-items: center; height: 100%; min-height: 380px; }
       .stage {
@@ -421,8 +423,12 @@
         root.innerHTML = "";
 
         state.template.fields.forEach((field) => {
+          const row = document.createElement("div");
+          row.className = "field-row";
+
           const wrapper = document.createElement("label");
           wrapper.textContent = field.label;
+
           const input = document.createElement("input");
           input.type = field.type === "color" ? "color" : "text";
           input.value = state.fields[field.id];
@@ -434,8 +440,45 @@
             syncJsonOutput();
           });
           wrapper.append(input);
-          root.append(wrapper);
+          row.append(wrapper);
+
+          if (field.type !== "color") {
+            const addBtn = document.createElement("button");
+            addBtn.className = "ghost mini-btn";
+            addBtn.type = "button";
+            addBtn.textContent = "+ @ playhead";
+            addBtn.title = `Add ${field.label} as a text layer at the current playhead`;
+            addBtn.addEventListener("click", () => addFieldOverlayAtPlayhead(field.id));
+            row.append(addBtn);
+          }
+
+          root.append(row);
         });
+      }
+
+      function addFieldOverlayAtPlayhead(fieldId) {
+        if (!state.project) return;
+        const overlays = getOverlayList();
+        const currentMs = getCurrentTimeMs();
+        const layer = {
+          id: `ov-field-${fieldId}-${Date.now()}`,
+          kind: "text",
+          textField: fieldId,
+          startTimeMs: currentMs,
+          endTimeMs: Math.min(currentMs + 5000, state.project.durationMs),
+          animationIn: "fade-up",
+          style: {
+            xPercent: 12,
+            yPercent: 24,
+            fontSize: 30,
+            fontWeight: 700,
+            color: "#ffffff"
+          }
+        };
+
+        overlays.push(layer);
+        state.selectedLayerId = layer.id;
+        onLayerMutated();
       }
 
       function getOverlayList() {
