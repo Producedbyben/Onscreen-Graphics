@@ -91,6 +91,82 @@ const DEFAULT_CAPTION_STYLE_PRESET = {
 };
 
 const DEFAULT_CAPTION_HIGHLIGHT_MODE = "word";
+const DEFAULT_LEGIBILITY_BACKGROUND_SAMPLE = "#7C8594";
+const DEFAULT_LEGIBILITY_THRESHOLD = 4.5;
+
+function parseHexColor(value) {
+  const hex = `${value ?? ""}`.replace("#", "").trim();
+  if (hex.length !== 3 && hex.length !== 6) {
+    return null;
+  }
+
+  const normalized = hex.length === 3 ? hex.split("").map((char) => `${char}${char}`).join("") : hex;
+  const parsed = Number.parseInt(normalized, 16);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+
+  return {
+    r: (parsed >> 16) & 255,
+    g: (parsed >> 8) & 255,
+    b: parsed & 255
+  };
+}
+
+function relativeLuminance(color) {
+  const parsed = parseHexColor(color) ?? parseHexColor("#FFFFFF");
+  const channels = [parsed.r, parsed.g, parsed.b].map((channel) => {
+    const sRGB = channel / 255;
+    return sRGB <= 0.03928 ? sRGB / 12.92 : ((sRGB + 0.055) / 1.055) ** 2.4;
+  });
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(foreground, background) {
+  const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+  const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function validateTextLegibility(textStyle = {}, backgroundSample = DEFAULT_LEGIBILITY_BACKGROUND_SAMPLE, minimumContrastRatio = DEFAULT_LEGIBILITY_THRESHOLD) {
+  const color = typeof textStyle.color === "string" ? textStyle.color : "#FFFFFF";
+  const ratio = contrastRatio(color, backgroundSample);
+  if (ratio >= minimumContrastRatio) {
+    return { passes: true, contrastRatio: ratio, recommendedStyle: { ...textStyle, color } };
+  }
+
+  const prefersDarkText = relativeLuminance(backgroundSample) > 0.45;
+  return {
+    passes: false,
+    contrastRatio: ratio,
+    recommendedStyle: {
+      ...textStyle,
+      color: prefersDarkText ? "#111111" : "#FFFFFF",
+      strokeColor: textStyle.strokeColor ?? (prefersDarkText ? "#FFFFFFCC" : "#000000CC"),
+      strokeWidth: Number.isFinite(Number(textStyle.strokeWidth)) ? Math.max(1, Number(textStyle.strokeWidth)) : 2,
+      textShadow: typeof textStyle.textShadow === "string" ? textStyle.textShadow : "0px 2px 6px rgba(0,0,0,0.75)"
+    }
+  };
+}
+
+function enforceOverlayTextLegibility(project, backgroundSample = DEFAULT_LEGIBILITY_BACKGROUND_SAMPLE) {
+  const nextProject = JSON.parse(JSON.stringify(project));
+  for (const track of nextProject.tracks ?? []) {
+    for (const clip of track.clips ?? []) {
+      for (const overlay of clip.overlays ?? []) {
+        if (overlay.kind !== "text") {
+          continue;
+        }
+        const result = validateTextLegibility(overlay.style ?? {}, backgroundSample, DEFAULT_LEGIBILITY_THRESHOLD);
+        overlay.style = result.recommendedStyle;
+      }
+    }
+  }
+
+  nextProject.updatedAt = new Date().toISOString();
+  return nextProject;
+}
 
 function getCaptionStylePackById(packId) {
   return CAPTION_STYLE_PACKS.find((pack) => pack.id === packId);
@@ -436,7 +512,7 @@ function createProjectFromTemplate({ templateId, projectName, baseProject }) {
 }
 
 function applyTemplateOneClick(project, templateId) {
-  const nextProject = createProjectFromTemplate({ templateId, baseProject: project });
+  let nextProject = createProjectFromTemplate({ templateId, baseProject: project });
   const videoTrack = nextProject.tracks.find((track) => track.type === "video");
 
   if (videoTrack?.clips[0]) {
@@ -455,6 +531,7 @@ function applyTemplateOneClick(project, templateId) {
     ];
   }
 
+  nextProject = enforceOverlayTextLegibility(nextProject);
   return nextProject;
 }
 
@@ -605,7 +682,7 @@ function buildDemoSceneData(project) {
     });
   }
 
-  return nextProject;
+  return enforceOverlayTextLegibility(nextProject);
 }
 
 async function runCreateFromTemplateFlow(selectedTemplateId, projectName, mediaAsset) {
@@ -651,9 +728,9 @@ function getPrimaryClip(project) {
 function updateProjectState(project, operation, payload) {
   switch (operation) {
     case "bulk-edit-fields":
-      return bulkEditTemplateFields(project, payload?.fieldsPatch ?? {});
+      return enforceOverlayTextLegibility(bulkEditTemplateFields(project, payload?.fieldsPatch ?? {}));
     case "apply-style-all-scenes":
-      return applyStyleToAllScenes(project, payload?.stylePatch ?? {});
+      return enforceOverlayTextLegibility(applyStyleToAllScenes(project, payload?.stylePatch ?? {}));
     case "move-overlay":
       return moveOverlayWithTimelineRules(project, payload);
     case "set-layer-lock":
@@ -933,6 +1010,7 @@ export {
   bulkEditTemplateFields,
   createProjectFromTemplate,
   duplicateScene,
+  enforceOverlayTextLegibility,
   importMediaAndCreateProject,
   listCaptionStylePacks,
   listTemplateMetadata,

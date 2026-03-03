@@ -5,3 +5,5 @@ export * from "./transcriptionProviders";
 export * from "./captionStylePacks";
 
 export * from "./layoutRules";
+
+export * from "./legibility";
