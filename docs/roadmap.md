@@ -17,3 +17,7 @@
 4. **Collaboration/versioning and advanced automation**
    - Add project history/version controls and collaborative workflows.
    - Introduce advanced automation for repetitive graphics production tasks.
+
+
+## Task breakdown
+- See `docs/task-plan.md` for sequenced implementation tasks across product, UX, and platform workstreams.
