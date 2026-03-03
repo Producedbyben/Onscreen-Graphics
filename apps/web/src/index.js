@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -10,8 +10,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const templatesDir = resolve(__dirname, "../../../packages/template-library/src/templates");
 const indexHtmlPath = resolve(__dirname, "../public/index.html");
 const uploadsDir = resolve(__dirname, "../uploads");
+const draftDir = resolve(__dirname, "../storage");
+const draftPath = resolve(draftDir, "latest-draft.json");
 
 mkdirSync(uploadsDir, { recursive: true });
+mkdirSync(draftDir, { recursive: true });
 const execFileAsync = promisify(execFile);
 
 const templateSources = ["ranking-videos.json", "scoreboards.json", "countdown-list.json"];
@@ -165,7 +168,8 @@ function createProjectScaffold({ projectName, aspectRatio = "9:16", durationMs =
       timeline: {
         layerLocks: {},
         snappingEnabled: true,
-        snapThresholdMs: TIMELINE_DEFAULTS.overlaySnapMs
+        snapThresholdMs: TIMELINE_DEFAULTS.overlaySnapMs,
+        playheadMs: 0
       },
       warnings: []
     }
@@ -262,9 +266,10 @@ function applyTemplateOneClick(project, templateId) {
         id: `${clip.id}-overlay-title`,
         kind: "text",
         layer: 1,
+        text: "Top Scorer",
         startTimeMs: 500,
         endTimeMs: 3200,
-        style: { fontSize: 64, color: "#FFFFFF" },
+        style: { fontSize: 64, color: "#FFFFFF", fontWeight: 700 },
         keyframes: []
       }
     ];
@@ -310,6 +315,7 @@ function moveOverlayWithTimelineRules(project, { clipId, overlayId, nextStartTim
     throw new Error(`Layer ${layerId} is locked and cannot be edited.`);
   }
 
+  const isSnappingEnabled = nextProject.metadata.timeline.snappingEnabled !== false;
   const snapThresholdMs = nextProject.metadata.timeline.snapThresholdMs ?? TIMELINE_DEFAULTS.overlaySnapMs;
   const track = nextProject.tracks.find((candidate) => candidate.type === "video" || candidate.type === "overlay");
   const clip = track?.clips.find((candidate) => candidate.id === clipId);
@@ -324,9 +330,11 @@ function moveOverlayWithTimelineRules(project, { clipId, overlayId, nextStartTim
   }
 
   const snapTargets = [0, clip.durationMs, ...clip.overlays.flatMap((entry) => [entry.startTimeMs, entry.endTimeMs])];
+  const inputStart = Number(nextStartTimeMs);
+  const inputEnd = Number(nextEndTimeMs);
 
-  const desiredStart = snapTime(nextStartTimeMs, snapTargets, snapThresholdMs);
-  const desiredEnd = snapTime(nextEndTimeMs, snapTargets, snapThresholdMs);
+  const desiredStart = isSnappingEnabled ? snapTime(inputStart, snapTargets, snapThresholdMs) : inputStart;
+  const desiredEnd = isSnappingEnabled ? snapTime(inputEnd, snapTargets, snapThresholdMs) : inputEnd;
   const minimumEnd = desiredStart + TIMELINE_DEFAULTS.minOverlayDurationMs;
 
   overlay.startTimeMs = Math.max(0, desiredStart);
@@ -408,11 +416,12 @@ function buildDemoSceneData(project) {
     videoTrack.clips[0].overlays.push({
       id: "overlay-title",
       kind: "text",
+      text: "Top 10 Goal Scorers",
       layer: 2,
       startTimeMs: 600,
       endTimeMs: 2800,
       keyframes: [],
-      style: { fontSize: 72, color: "#FFFFFF" }
+      style: { fontSize: 72, color: "#FFFFFF", fontWeight: 700 }
     });
   }
 
@@ -448,6 +457,40 @@ function runCreateFromTemplateFlow(selectedTemplateId, projectName, mediaAsset) 
   return { project, fitResult };
 }
 
+function getPrimaryClip(project) {
+  const videoTrack = project?.tracks?.find((track) => track.type === "video");
+  return videoTrack?.clips?.[0];
+}
+
+function updateProjectState(project, operation, payload) {
+  switch (operation) {
+    case "bulk-edit-fields":
+      return bulkEditTemplateFields(project, payload?.fieldsPatch ?? {});
+    case "apply-style-all-scenes":
+      return applyStyleToAllScenes(project, payload?.stylePatch ?? {});
+    case "move-overlay":
+      return moveOverlayWithTimelineRules(project, payload);
+    case "set-layer-lock":
+      return setTimelineLayerLock(project, payload?.layerId, payload?.locked);
+    case "set-snap-enabled": {
+      const nextProject = JSON.parse(JSON.stringify(project));
+      nextProject.metadata.timeline.snappingEnabled = Boolean(payload?.enabled);
+      nextProject.updatedAt = new Date().toISOString();
+      return nextProject;
+    }
+    case "set-playhead": {
+      const nextProject = JSON.parse(JSON.stringify(project));
+      const durationMs = getPrimaryClip(nextProject)?.durationMs ?? nextProject.durationMs;
+      const safePlayhead = Math.max(0, Math.min(Number(payload?.playheadMs ?? 0), durationMs));
+      nextProject.metadata.timeline.playheadMs = safePlayhead;
+      nextProject.updatedAt = new Date().toISOString();
+      return nextProject;
+    }
+    default:
+      throw validationError(`Unsupported operation: ${operation}`);
+  }
+}
+
 function parseRequestBody(req) {
   return new Promise((resolveBody, rejectBody) => {
     let raw = "";
@@ -459,9 +502,34 @@ function parseRequestBody(req) {
   });
 }
 
+async function parseJsonBody(req) {
+  const raw = await parseRequestBody(req);
+  return raw ? JSON.parse(raw) : {};
+}
+
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, { "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(payload, null, 2));
+}
+
+function saveDraft(project) {
+  const now = new Date().toISOString();
+  const record = {
+    project,
+    updatedAt: now
+  };
+
+  writeFileSync(draftPath, JSON.stringify(record, null, 2));
+  return record;
+}
+
+function loadDraft() {
+  if (!existsSync(draftPath)) {
+    return null;
+  }
+
+  const raw = readFileSync(draftPath, "utf8");
+  return JSON.parse(raw);
 }
 
 async function handleUploadRequest(req, res) {
@@ -521,6 +589,19 @@ function startWebServer() {
       return;
     }
 
+    if (method === "GET" && url === "/api/workflow/steps") {
+      sendJson(res, 200, {
+        steps: [
+          { id: "template", title: "Choose template", description: "Start from a scoreboard/countdown template." },
+          { id: "media", title: "Upload media", description: "Attach your background video clip." },
+          { id: "edit", title: "Edit", description: "Adjust fields, overlays, styles, and scene timing." },
+          { id: "timeline", title: "Timeline", description: "Move playhead, snap overlays, lock layers." },
+          { id: "export", title: "Export", description: "Review and export project JSON." }
+        ]
+      });
+      return;
+    }
+
     if (method === "POST" && url === "/api/uploads") {
       try {
         await handleUploadRequest(req, res);
@@ -537,9 +618,7 @@ function startWebServer() {
 
     if (method === "POST" && url === "/api/projects/from-template") {
       try {
-        const body = await parseRequestBody(req);
-
-        const parsedBody = body ? JSON.parse(body) : {};
+        const parsedBody = await parseJsonBody(req);
         const { templateId, projectName, mediaAsset } = parsedBody;
 
         const result = runCreateFromTemplateFlow(templateId, projectName, mediaAsset);
@@ -552,6 +631,54 @@ function startWebServer() {
           details: error.details
         });
       }
+      return;
+    }
+
+    if (method === "POST" && url === "/api/projects/update") {
+      try {
+        const parsedBody = await parseJsonBody(req);
+        const { project, operation, payload } = parsedBody;
+
+        if (!project) {
+          throw validationError("Project payload is required.");
+        }
+
+        const updatedProject = updateProjectState(project, operation, payload);
+        sendJson(res, 200, { project: updatedProject });
+      } catch (error) {
+        const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
+        sendJson(res, statusCode, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
+      }
+      return;
+    }
+
+    if (method === "POST" && url === "/api/projects/draft") {
+      try {
+        const parsedBody = await parseJsonBody(req);
+        if (!parsedBody.project) {
+          throw validationError("Project payload is required for draft save.");
+        }
+
+        const saved = saveDraft(parsedBody.project);
+        sendJson(res, 201, saved);
+      } catch (error) {
+        const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
+        sendJson(res, statusCode, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
+      }
+      return;
+    }
+
+    if (method === "GET" && url === "/api/projects/draft") {
+      const draft = loadDraft();
+      sendJson(res, 200, { draft });
       return;
     }
 
@@ -579,5 +706,6 @@ export {
   moveOverlayWithTimelineRules,
   runCreateFromTemplateFlow,
   setTimelineLayerLock,
-  startWebServer
+  startWebServer,
+  updateProjectState
 };
