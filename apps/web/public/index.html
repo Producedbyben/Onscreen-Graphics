@@ -96,6 +96,40 @@
             </label>
             <button id="applySceneEditsBtn" type="button">Apply scene updates</button>
           </div>
+          <div class="row">
+            <label>
+              Brand primary
+              <input id="brandPrimaryInput" type="color" value="#0ea5e9" />
+            </label>
+            <label>
+              Brand secondary
+              <input id="brandSecondaryInput" type="color" value="#1e293b" />
+            </label>
+            <label>
+              Brand accent
+              <input id="brandAccentInput" type="color" value="#f97316" />
+            </label>
+            <label>
+              Brand font
+              <input id="brandFontInput" type="text" value="Inter" />
+            </label>
+            <button id="applyBrandKitBtn" type="button" class="secondary">Apply brand kit</button>
+          </div>
+          <div class="row">
+            <label>
+              Variant suffixes (comma separated)
+              <input id="variantSuffixesInput" type="text" value="blue,orange" />
+            </label>
+            <label>
+              Variant token key
+              <input id="variantTokenKeyInput" type="text" value="{{team}}" />
+            </label>
+            <label>
+              Variant token values (comma separated)
+              <input id="variantTokenValuesInput" type="text" value="Falcons,Sharks" />
+            </label>
+            <button id="generateVariantsBtn" type="button" class="secondary">Generate variants</button>
+          </div>
           <hr />
           <div class="row">
             <label>
@@ -177,6 +211,15 @@
       const overlayFontSizeInput = document.querySelector('#overlayFontSizeInput');
       const applySceneEditsBtn = document.querySelector('#applySceneEditsBtn');
       const applyOverlayBtn = document.querySelector('#applyOverlayBtn');
+      const brandPrimaryInput = document.querySelector('#brandPrimaryInput');
+      const brandSecondaryInput = document.querySelector('#brandSecondaryInput');
+      const brandAccentInput = document.querySelector('#brandAccentInput');
+      const brandFontInput = document.querySelector('#brandFontInput');
+      const applyBrandKitBtn = document.querySelector('#applyBrandKitBtn');
+      const variantSuffixesInput = document.querySelector('#variantSuffixesInput');
+      const variantTokenKeyInput = document.querySelector('#variantTokenKeyInput');
+      const variantTokenValuesInput = document.querySelector('#variantTokenValuesInput');
+      const generateVariantsBtn = document.querySelector('#generateVariantsBtn');
 
       const timelineEmpty = document.querySelector('#timelineEmpty');
       const timelineControls = document.querySelector('#timelineControls');
@@ -498,6 +541,56 @@
         setStatus('Overlay text/style updated.', 'success');
       }
 
+
+      function applyBrandKit() {
+        if (!projectState) return;
+        projectState.metadata = projectState.metadata || {};
+        projectState.metadata.brandKit = {
+          ...(projectState.metadata.brandKit || {}),
+          primaryColor: brandPrimaryInput.value,
+          secondaryColor: brandSecondaryInput.value,
+          accentColor: brandAccentInput.value,
+          typography: {
+            ...((projectState.metadata.brandKit || {}).typography || {}),
+            fontFamily: brandFontInput.value || 'Inter'
+          }
+        };
+
+        const overlay = getPrimaryOverlay();
+        if (overlay) {
+          overlay.style = {
+            ...(overlay.style || {}),
+            color: brandPrimaryInput.value,
+            fontFamily: brandFontInput.value || 'Inter'
+          };
+        }
+
+        projectState.updatedAt = new Date().toISOString();
+        output.textContent = JSON.stringify(projectState, null, 2);
+        persistLocalDraft();
+        setStatus('Brand kit applied to project metadata and primary overlay.', 'success');
+      }
+
+      function generateVariants() {
+        if (!projectState) return;
+        const suffixes = variantSuffixesInput.value.split(',').map((value) => value.trim()).filter(Boolean);
+        const tokenKey = variantTokenKeyInput.value.trim();
+        const tokenValues = variantTokenValuesInput.value.split(',').map((value) => value.trim()).filter(Boolean);
+
+        const variants = suffixes.map((suffix, index) => ({
+          variantId: suffix,
+          name: `${projectState.name} (${suffix})`,
+          substitutions: tokenKey && tokenValues[index] ? { [tokenKey]: tokenValues[index] } : {}
+        }));
+
+        projectState.metadata = projectState.metadata || {};
+        projectState.metadata.variants = variants;
+        projectState.updatedAt = new Date().toISOString();
+        output.textContent = JSON.stringify({ project: projectState, variants }, null, 2);
+        persistLocalDraft();
+        setStatus(`Generated ${variants.length} variant descriptor(s).`, variants.length ? 'success' : 'warn');
+      }
+
       async function applyTiming() {
         const overlay = getPrimaryOverlay();
         const clip = getPrimaryClip();
@@ -527,6 +620,8 @@
       createBtn.addEventListener('click', createProject);
       applySceneEditsBtn.addEventListener('click', applySceneEdits);
       applyOverlayBtn.addEventListener('click', applyOverlayTextStyle);
+      applyBrandKitBtn.addEventListener('click', applyBrandKit);
+      generateVariantsBtn.addEventListener('click', generateVariants);
       applyTimingBtn.addEventListener('click', applyTiming);
       playheadInput.addEventListener('input', () => {
         serverUpdate('set-playhead', { playheadMs: Number(playheadInput.value) });

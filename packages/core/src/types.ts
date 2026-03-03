@@ -144,6 +144,29 @@ export interface CaptionSettings {
   highlightMode: CaptionHighlightMode;
 }
 
+
+export interface BrandKitTypography {
+  fontFamily: string;
+  headingFontFamily?: string;
+  fallbackFontFamily?: string;
+}
+
+export interface BrandKit {
+  id?: string;
+  label?: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  typography: BrandKitTypography;
+  logoUri?: string;
+}
+
+export interface BrandVariantSubstitution {
+  variantId: string;
+  name?: string;
+  substitutions: Record<string, string>;
+  brandKit?: Partial<BrandKit>;
+}
 export interface SafeZoneGuideSettings {
   enabled: boolean;
   opacity: number;
@@ -152,6 +175,12 @@ export interface SafeZoneGuideSettings {
 
 export interface ProjectMetadata {
   safeZoneGuides?: SafeZoneGuideSettings;
+  brandKit?: BrandKit;
+  variants?: Array<{
+    variantId: string;
+    name?: string;
+    substitutions: Record<string, string>;
+  }>;
   [key: string]: unknown;
 }
 

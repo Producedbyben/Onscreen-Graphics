@@ -291,6 +291,36 @@ export interface RenderResult {
   serializedJob?: string;
 }
 
+export interface RenderBatchVariantRequest {
+  variantId: string;
+  request: RenderRequest;
+}
+
+export interface RenderBatchRequest {
+  batchId: string;
+  variants: RenderBatchVariantRequest[];
+}
+
+export interface RenderBatchVariantResult {
+  variantId: string;
+  status: RenderQueueStatus;
+  attempt: number;
+  maxAttempts: number;
+  retriesUsed: number;
+  result: RenderResult;
+}
+
+export interface RenderBatchResult {
+  batchId: string;
+  status: RenderQueueStatus;
+  statusMessage: string;
+  totalVariants: number;
+  completedVariants: number;
+  failedVariants: number;
+  retriesUsed: number;
+  variants: RenderBatchVariantResult[];
+}
+
 export class RenderValidationError extends Error {
   diagnostics: RenderValidationDiagnostic[];
 
@@ -746,4 +776,57 @@ export function renderProject(request: RenderRequest): RenderResult {
   };
   IDEMPOTENT_JOB_STORE.set(request.idempotencyKey, { fingerprint, result: exhaustedResult });
   return exhaustedResult;
+}
+
+function getBatchStatus(variants: RenderBatchVariantResult[]): RenderQueueStatus {
+  if (variants.some((variant) => variant.status === "failed")) {
+    return "failed";
+  }
+
+  if (variants.some((variant) => variant.status === "retrying" || variant.status === "processing" || variant.status === "queued")) {
+    return "processing";
+  }
+
+  return "completed";
+}
+
+export function renderProjectBatch(request: RenderBatchRequest): RenderBatchResult {
+  const variants = request.variants.map((variant) => {
+    const result = renderProject(variant.request);
+    return {
+      variantId: variant.variantId,
+      status: result.status,
+      attempt: result.job.attempt,
+      maxAttempts: result.job.maxAttempts,
+      retriesUsed: Math.max(0, result.job.attempt - 1),
+      result,
+    } satisfies RenderBatchVariantResult;
+  });
+
+  const status = getBatchStatus(variants);
+  const completedVariants = variants.filter((variant) => variant.status === "completed").length;
+  const failedVariants = variants.filter((variant) => variant.status === "failed").length;
+  const retriesUsed = variants.reduce((total, variant) => total + variant.retriesUsed, 0);
+
+  return {
+    batchId: request.batchId,
+    status,
+    statusMessage:
+      status === "completed"
+        ? `Batch completed for ${completedVariants}/${variants.length} variant(s).`
+        : `Batch finished with ${failedVariants} failed variant(s) out of ${variants.length}.`,
+    totalVariants: variants.length,
+    completedVariants,
+    failedVariants,
+    retriesUsed,
+    variants,
+  };
+}
+
+export function renderProjectRequest(request: RenderRequest | RenderBatchRequest): RenderResult | RenderBatchResult {
+  if ("variants" in request) {
+    return renderProjectBatch(request);
+  }
+
+  return renderProject(request);
 }

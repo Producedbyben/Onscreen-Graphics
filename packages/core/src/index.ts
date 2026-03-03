@@ -9,3 +9,5 @@ export * from "./layoutRules";
 export * from "./legibility";
 
 export * from "./automation";
+
+export * from "./brandKit";
