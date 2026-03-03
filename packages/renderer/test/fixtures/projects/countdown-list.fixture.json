@@ -1,0 +1,10 @@
+{
+  "templateFile": "countdown-list.json",
+  "projectId": "fixture-countdown",
+  "projectName": "Countdown Fixture Project",
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "durationMs": 10000,
+  "clipsPerTrack": 3
+}

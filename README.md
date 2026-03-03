@@ -20,6 +20,11 @@ You can also run package-specific scripts:
 - `npm --workspace @onscreen/core run build`
 - `npm --workspace @onscreen/renderer run build`
 - `npm --workspace @onscreen/template-library run build`
+- `npm --workspace @onscreen/core run test`
+- `npm --workspace @onscreen/renderer run test`
+- `npm --workspace @onscreen/template-library run test`
+
+Golden snapshot update flow for renderer fixtures is documented in `docs/testing-golden-fixtures.md`.
 
 ## Package responsibilities
 
