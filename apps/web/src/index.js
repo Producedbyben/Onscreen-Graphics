@@ -1,11 +1,18 @@
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const templatesDir = resolve(__dirname, "../../../packages/template-library/src/templates");
 const indexHtmlPath = resolve(__dirname, "../public/index.html");
+const uploadsDir = resolve(__dirname, "../uploads");
+
+mkdirSync(uploadsDir, { recursive: true });
+const execFileAsync = promisify(execFile);
 
 const templateSources = ["ranking-videos.json", "scoreboards.json", "countdown-list.json"];
 
@@ -24,6 +31,98 @@ const TIMELINE_DEFAULTS = {
   overlaySnapMs: 100,
   minOverlayDurationMs: 250
 };
+
+const SUPPORTED_MEDIA_FORMATS = {
+  ".mp4": {
+    format: "mp4",
+    mimeTypes: ["video/mp4"]
+  },
+  ".webm": {
+    format: "webm",
+    mimeTypes: ["video/webm"]
+  },
+  ".mov": {
+    format: "mov",
+    mimeTypes: ["video/quicktime"]
+  }
+};
+
+function validationError(message, details = {}) {
+  const error = new Error(message);
+  error.code = "VALIDATION_ERROR";
+  error.details = details;
+  return error;
+}
+
+function sanitizeFileName(fileName) {
+  return basename(fileName).replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function validateMediaUpload({ fileName, mimeType, fileSize }) {
+  const extension = extname(fileName).toLowerCase();
+  const supportedExtensions = Object.keys(SUPPORTED_MEDIA_FORMATS);
+  const supportedFormat = SUPPORTED_MEDIA_FORMATS[extension];
+
+  if (!supportedFormat) {
+    throw validationError(`Unsupported file extension \"${extension || "(none)"}\".`, {
+      allowedExtensions: supportedExtensions,
+      hint: "Use an MP4, WEBM, or MOV video file."
+    });
+  }
+
+  if (mimeType && !supportedFormat.mimeTypes.includes(mimeType)) {
+    throw validationError(`Unsupported content type \"${mimeType}\" for ${extension} file.`, {
+      expectedMimeTypes: supportedFormat.mimeTypes,
+      hint: "Check your file export settings and try uploading again."
+    });
+  }
+
+  if (typeof fileSize === "number" && fileSize <= 0) {
+    throw validationError("Uploaded file is empty.", {
+      hint: "Please select a non-empty video file and retry."
+    });
+  }
+
+  return supportedFormat;
+}
+
+async function probeMediaFile(filePath) {
+  try {
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v",
+      "error",
+      "-print_format",
+      "json",
+      "-show_streams",
+      "-show_format",
+      filePath
+    ]);
+
+    const parsed = JSON.parse(stdout);
+    const videoStream = parsed.streams?.find((stream) => stream.codec_type === "video");
+    const durationSeconds = Number(videoStream?.duration ?? parsed.format?.duration ?? 0);
+    const fpsValue = videoStream?.avg_frame_rate;
+    const [fpsNumerator, fpsDenominator] = typeof fpsValue === "string" ? fpsValue.split("/") : [];
+    const fps =
+      fpsNumerator && fpsDenominator && Number(fpsDenominator) !== 0
+        ? Number(fpsNumerator) / Number(fpsDenominator)
+        : undefined;
+
+    return {
+      width: Number(videoStream?.width) || undefined,
+      height: Number(videoStream?.height) || undefined,
+      durationMs: durationSeconds > 0 ? Math.round(durationSeconds * 1000) : undefined,
+      fps: Number.isFinite(fps) ? Number(fps.toFixed(3)) : undefined
+    };
+  } catch {
+    return {
+      width: undefined,
+      height: undefined,
+      durationMs: undefined,
+      fps: undefined
+    };
+  }
+}
 
 function getTemplateById(templateId) {
   return templates.find((template) => template.id === templateId);
@@ -73,32 +172,52 @@ function createProjectScaffold({ projectName, aspectRatio = "9:16", durationMs =
   };
 }
 
-function importMp4AndCreateProject({
-  filePath,
+function importMediaAndCreateProject({
+  asset,
   projectName,
   aspectRatio = "9:16",
   durationMs = 15000,
   trimInMs = 0,
   trimOutMs
 }) {
-  if (!filePath || extname(filePath).toLowerCase() !== ".mp4") {
-    throw new Error("Only MP4 uploads are supported in this flow.");
+  if (!asset?.filePath || !asset?.fileName) {
+    throw validationError("Missing uploaded media reference.", {
+      hint: "Upload a media file before creating a project."
+    });
   }
 
-  const project = createProjectScaffold({ projectName, aspectRatio, durationMs });
-  const clipDuration = Math.max(1000, (trimOutMs ?? durationMs) - trimInMs);
+  const validated = validateMediaUpload({
+    fileName: asset.fileName,
+    mimeType: asset.mimeType,
+    fileSize: asset.fileSize
+  });
+
+  const inferredDurationMs = asset.probe?.durationMs ?? durationMs;
+  const clipTrimOutMs = trimOutMs ?? inferredDurationMs;
+  const clipDuration = Math.max(1000, clipTrimOutMs - trimInMs);
+
+  const project = createProjectScaffold({ projectName, aspectRatio, durationMs: inferredDurationMs });
+  if (asset.probe?.fps) {
+    project.fps = Math.round(asset.probe.fps);
+  }
 
   const videoClip = {
     id: `${project.id}-clip-bg-1`,
-    sourceUri: filePath,
+    sourceUri: asset.filePath,
     startTimeMs: 0,
     durationMs: clipDuration,
     trimInMs,
-    trimOutMs: trimOutMs ?? durationMs,
+    trimOutMs: clipTrimOutMs,
     overlays: [],
     metadata: {
-      importedFileName: basename(filePath),
-      importType: "mp4"
+      importedFileName: asset.fileName,
+      importType: validated.format,
+      mimeType: asset.mimeType,
+      fileSize: asset.fileSize,
+      sourceWidth: asset.probe?.width,
+      sourceHeight: asset.probe?.height,
+      sourceDurationMs: asset.probe?.durationMs,
+      sourceFps: asset.probe?.fps
     }
   };
 
@@ -300,11 +419,11 @@ function buildDemoSceneData(project) {
   return nextProject;
 }
 
-function runCreateFromTemplateFlow(selectedTemplateId, projectName) {
+function runCreateFromTemplateFlow(selectedTemplateId, projectName, mediaAsset) {
   const templateOptions = listTemplateMetadata();
 
-  let project = importMp4AndCreateProject({
-    filePath: "./uploads/background.mp4",
+  let project = importMediaAndCreateProject({
+    asset: mediaAsset,
     projectName: projectName || "Untitled from Upload",
     aspectRatio: templateOptions[0]?.aspectRatio ?? "9:16"
   });
@@ -329,6 +448,61 @@ function runCreateFromTemplateFlow(selectedTemplateId, projectName) {
   return { project, fitResult };
 }
 
+function parseRequestBody(req) {
+  return new Promise((resolveBody, rejectBody) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+    });
+    req.on("end", () => resolveBody(raw));
+    req.on("error", rejectBody);
+  });
+}
+
+function sendJson(res, statusCode, payload) {
+  res.writeHead(statusCode, { "content-type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(payload, null, 2));
+}
+
+async function handleUploadRequest(req, res) {
+  const fileName = req.headers["x-file-name"];
+  const mimeType = req.headers["content-type"];
+  const fileSize = Number(req.headers["content-length"]);
+
+  if (!fileName || Array.isArray(fileName)) {
+    throw validationError("Missing file metadata.", {
+      hint: "Send the original file name in the x-file-name request header."
+    });
+  }
+
+  const validatedFormat = validateMediaUpload({ fileName, mimeType, fileSize });
+  const safeName = sanitizeFileName(fileName);
+  const storageName = `${Date.now()}-${randomUUID()}-${safeName}`;
+  const filePath = resolve(uploadsDir, storageName);
+
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+
+  const data = Buffer.concat(chunks);
+  validateMediaUpload({ fileName, mimeType, fileSize: data.byteLength });
+  writeFileSync(filePath, data);
+  const probe = await probeMediaFile(filePath);
+
+  sendJson(res, 201, {
+    asset: {
+      id: storageName,
+      fileName: safeName,
+      filePath,
+      format: validatedFormat.format,
+      mimeType,
+      fileSize: data.byteLength,
+      probe
+    }
+  });
+}
+
 function startWebServer() {
   const port = Number(process.env.PORT ?? 3000);
   const indexHtml = readFileSync(indexHtmlPath, "utf8");
@@ -343,37 +517,45 @@ function startWebServer() {
     }
 
     if (method === "GET" && url === "/api/templates") {
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ templates: listTemplateMetadata() }));
+      sendJson(res, 200, { templates: listTemplateMetadata() });
+      return;
+    }
+
+    if (method === "POST" && url === "/api/uploads") {
+      try {
+        await handleUploadRequest(req, res);
+      } catch (error) {
+        const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
+        sendJson(res, statusCode, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
+      }
       return;
     }
 
     if (method === "POST" && url === "/api/projects/from-template") {
       try {
-        const body = await new Promise((resolveBody, rejectBody) => {
-          let raw = "";
-          req.on("data", (chunk) => {
-            raw += chunk;
-          });
-          req.on("end", () => resolveBody(raw));
-          req.on("error", rejectBody);
-        });
+        const body = await parseRequestBody(req);
 
         const parsedBody = body ? JSON.parse(body) : {};
-        const { templateId, projectName } = parsedBody;
+        const { templateId, projectName, mediaAsset } = parsedBody;
 
-        const result = runCreateFromTemplateFlow(templateId, projectName);
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify(result, null, 2));
+        const result = runCreateFromTemplateFlow(templateId, projectName, mediaAsset);
+        sendJson(res, 200, result);
       } catch (error) {
-        res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: error.message }));
+        const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
+        sendJson(res, statusCode, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
       }
       return;
     }
 
-    res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify({ error: "Not Found" }));
+    sendJson(res, 404, { error: "Not Found" });
   });
 
   server.listen(port, () => {
@@ -392,7 +574,7 @@ export {
   bulkEditTemplateFields,
   createProjectFromTemplate,
   duplicateScene,
-  importMp4AndCreateProject,
+  importMediaAndCreateProject,
   listTemplateMetadata,
   moveOverlayWithTimelineRules,
   runCreateFromTemplateFlow,
