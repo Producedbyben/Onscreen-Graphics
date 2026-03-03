@@ -5,111 +5,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Onscreen Graphics Local UI</title>
     <style>
-      :root {
-        color-scheme: dark;
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      }
-
-      body {
-        margin: 0;
-        padding: 24px;
-        background: #0f172a;
-        color: #e2e8f0;
-      }
-
-      main {
-        max-width: 960px;
-        margin: 0 auto;
-      }
-
-      .panel {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 16px;
-      }
-
-      .row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 12px;
-        align-items: end;
-      }
-
-      label {
-        display: flex;
-        flex-direction: column;
-        font-size: 0.9rem;
-        gap: 6px;
-      }
-
-      input,
-      select,
-      button,
-      textarea {
-        border-radius: 8px;
-        border: 1px solid #475569;
-        background: #0b1220;
-        color: inherit;
-        font: inherit;
-        padding: 10px;
-      }
-
-      button {
-        cursor: pointer;
-        background: #0284c7;
-        border-color: #0369a1;
-        font-weight: 600;
-      }
-
-      button[disabled] {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-
-      .status {
-        margin-top: 10px;
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid #334155;
-        background: #0b1220;
-        font-size: 0.9rem;
-      }
-
-      .status.success {
-        border-color: #14532d;
-        background: #052e16;
-        color: #bbf7d0;
-      }
-
-      .status.error {
-        border-color: #7f1d1d;
-        background: #450a0a;
-        color: #fecaca;
-      }
-
-      pre {
-        white-space: pre-wrap;
-        word-break: break-word;
-        font-size: 0.8rem;
-        max-height: 480px;
-        overflow: auto;
-      }
+      :root { color-scheme: dark; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      body { margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+      main { max-width: 1100px; margin: 0 auto; }
+      .panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+      .steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+      .step { background: #0b1220; border: 1px solid #334155; border-radius: 8px; padding: 8px; font-size: .82rem; }
+      .step.active { border-color: #38bdf8; background: #082f49; }
+      label { display: flex; flex-direction: column; font-size: .9rem; gap: 6px; }
+      input, select, button, textarea { border-radius: 8px; border: 1px solid #475569; background: #0b1220; color: inherit; font: inherit; padding: 9px; }
+      button { cursor: pointer; background: #0284c7; border-color: #0369a1; font-weight: 600; }
+      button.secondary { background: #1e293b; border-color: #475569; }
+      button[disabled] { opacity: 0.6; cursor: not-allowed; }
+      .status { margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #0b1220; font-size: 0.9rem; }
+      .status.success { border-color: #14532d; background: #052e16; color: #bbf7d0; }
+      .status.error { border-color: #7f1d1d; background: #450a0a; color: #fecaca; }
+      .status.warn { border-color: #854d0e; background: #422006; color: #fde68a; }
+      .hidden { display: none; }
+      .empty { color: #94a3b8; border: 1px dashed #475569; border-radius: 8px; padding: 12px; font-size: .9rem; }
+      .hint { font-size: .8rem; color: #94a3b8; margin-top: 4px; }
+      .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      pre { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; max-height: 380px; overflow: auto; }
     </style>
   </head>
   <body>
     <main>
       <h1>Onscreen Graphics Local Runner</h1>
-      <p>Generate a demo project from templates directly in Chrome.</p>
+      <p>Follow the guided workflow: choose template → upload media → edit fields/layers/timing → export.</p>
 
       <section class="panel">
+        <h2>Workflow</h2>
+        <div id="steps" class="steps"></div>
+        <div class="toolbar">
+          <button id="resumeBtn" type="button" class="secondary" title="Load latest auto-saved draft from local storage or server">Resume previous project</button>
+          <button id="saveDraftBtn" type="button" class="secondary" title="Save your current draft">Save draft now</button>
+          <span id="draftInfo" class="hint">No draft loaded yet.</span>
+        </div>
+      </section>
+
+      <section class="panel" data-step="template">
+        <h2>1) Choose template</h2>
         <div class="row">
-          <label>
-            Upload background media
-            <input id="mediaFile" type="file" accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" />
-          </label>
-          <label>
+          <label title="Pick a starting layout for your project">
             Template
             <select id="templateSelect"></select>
           </label>
@@ -117,33 +55,245 @@
             Project name
             <input id="projectName" type="text" value="Untitled from Upload" />
           </label>
-          <button id="createBtn" type="button">Create project JSON</button>
+          <button id="toMediaBtn" type="button">Continue to media</button>
         </div>
-        <div id="uploadStatus" class="status">Choose a video (MP4/WEBM/MOV) to begin.</div>
-        <button id="retryUploadBtn" type="button" style="margin-top: 10px; display: none;">Retry upload</button>
       </section>
 
-      <section class="panel">
-        <h2>Result</h2>
+      <section class="panel hidden" data-step="media">
+        <h2>2) Upload media</h2>
+        <div class="row">
+          <label title="Supported formats: MP4/WEBM/MOV">
+            Upload background media
+            <input id="mediaFile" type="file" accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" />
+          </label>
+          <button id="createBtn" type="button" disabled>Create project from template</button>
+        </div>
+        <div id="uploadStatus" class="status">Choose a video (MP4/WEBM/MOV) to begin.</div>
+      </section>
+
+      <section class="panel hidden" data-step="edit">
+        <h2>3) Edit fields, overlay inspector, and scene batch styles</h2>
+        <div id="editEmpty" class="empty">Create a project first to unlock inspector controls.</div>
+        <div id="editControls" class="hidden">
+          <div class="row">
+            <label title="Uses bulkEditTemplateFields helper on server">
+              Rank label (all scenes)
+              <input id="rankLabelInput" type="text" value="#1" />
+            </label>
+            <label>
+              Accent color (all scenes)
+              <input id="accentColorInput" type="text" value="#FF5A5F" />
+            </label>
+            <label title="Uses applyStyleToAllScenes helper">
+              Scene font family
+              <input id="sceneFontInput" type="text" value="Sora" />
+            </label>
+            <button id="applySceneEditsBtn" type="button">Apply scene updates</button>
+          </div>
+          <hr />
+          <div class="row">
+            <label>
+              Overlay text
+              <input id="overlayTextInput" type="text" />
+            </label>
+            <label>
+              Overlay color
+              <input id="overlayColorInput" type="text" value="#FFFFFF" />
+            </label>
+            <label>
+              Font size
+              <input id="overlayFontSizeInput" type="number" min="12" max="160" value="72" />
+            </label>
+            <button id="applyOverlayBtn" type="button">Apply overlay text/style</button>
+          </div>
+          <div class="hint">Tip: overlay style edits apply to the first overlay in the first clip for quick iteration.</div>
+        </div>
+      </section>
+
+      <section class="panel hidden" data-step="timeline">
+        <h2>4) Timeline controls</h2>
+        <div id="timelineEmpty" class="empty">Create a project to enable playhead + timing controls.</div>
+        <div id="timelineControls" class="hidden">
+          <div class="row">
+            <label>
+              Playhead (ms)
+              <input id="playheadInput" type="range" min="0" max="10000" step="50" value="0" />
+            </label>
+            <label>
+              Overlay start (ms)
+              <input id="overlayStartInput" type="number" min="0" value="600" />
+            </label>
+            <label>
+              Overlay end (ms)
+              <input id="overlayEndInput" type="number" min="250" value="2800" />
+            </label>
+            <button id="applyTimingBtn" type="button">Move overlay</button>
+          </div>
+          <div class="toolbar">
+            <button id="snapToggleBtn" type="button" class="secondary">Snapping: ON</button>
+            <button id="lockToggleBtn" type="button" class="secondary">Layer 2 lock: OFF</button>
+            <span id="timelineBadge" class="hint">No timeline warnings.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel hidden" data-step="export">
+        <h2>5) Export</h2>
+        <div class="hint">Project JSON updates live as you edit. Save a draft to resume later.</div>
         <pre id="output">Loading templates…</pre>
       </section>
     </main>
 
     <script type="module">
+      const stepOrder = ['template', 'media', 'edit', 'timeline', 'export'];
       const templateSelect = document.querySelector('#templateSelect');
       const projectNameInput = document.querySelector('#projectName');
       const mediaFileInput = document.querySelector('#mediaFile');
+      const toMediaBtn = document.querySelector('#toMediaBtn');
       const createBtn = document.querySelector('#createBtn');
       const uploadStatus = document.querySelector('#uploadStatus');
-      const retryUploadBtn = document.querySelector('#retryUploadBtn');
       const output = document.querySelector('#output');
+      const stepsEl = document.querySelector('#steps');
+      const resumeBtn = document.querySelector('#resumeBtn');
+      const saveDraftBtn = document.querySelector('#saveDraftBtn');
+      const draftInfo = document.querySelector('#draftInfo');
+
+      const editEmpty = document.querySelector('#editEmpty');
+      const editControls = document.querySelector('#editControls');
+      const rankLabelInput = document.querySelector('#rankLabelInput');
+      const accentColorInput = document.querySelector('#accentColorInput');
+      const sceneFontInput = document.querySelector('#sceneFontInput');
+      const overlayTextInput = document.querySelector('#overlayTextInput');
+      const overlayColorInput = document.querySelector('#overlayColorInput');
+      const overlayFontSizeInput = document.querySelector('#overlayFontSizeInput');
+      const applySceneEditsBtn = document.querySelector('#applySceneEditsBtn');
+      const applyOverlayBtn = document.querySelector('#applyOverlayBtn');
+
+      const timelineEmpty = document.querySelector('#timelineEmpty');
+      const timelineControls = document.querySelector('#timelineControls');
+      const playheadInput = document.querySelector('#playheadInput');
+      const overlayStartInput = document.querySelector('#overlayStartInput');
+      const overlayEndInput = document.querySelector('#overlayEndInput');
+      const applyTimingBtn = document.querySelector('#applyTimingBtn');
+      const snapToggleBtn = document.querySelector('#snapToggleBtn');
+      const lockToggleBtn = document.querySelector('#lockToggleBtn');
+      const timelineBadge = document.querySelector('#timelineBadge');
 
       let uploadedAsset;
-      let lastSelectedFile;
+      let projectState;
+      let currentStep = 'template';
 
-      function setUploadStatus(message, state = 'info') {
+      function setStatus(message, state = 'info') {
         uploadStatus.textContent = message;
         uploadStatus.className = `status ${state === 'info' ? '' : state}`.trim();
+      }
+
+      function getPrimaryClip() {
+        return projectState?.tracks?.find((track) => track.type === 'video')?.clips?.[0];
+      }
+
+      function getPrimaryOverlay() {
+        return getPrimaryClip()?.overlays?.[0];
+      }
+
+      function setStep(step) {
+        currentStep = step;
+        for (const section of document.querySelectorAll('[data-step]')) {
+          section.classList.toggle('hidden', section.dataset.step !== step);
+        }
+        renderSteps();
+      }
+
+      async function loadWorkflowSteps() {
+        const response = await fetch('/api/workflow/steps');
+        const data = await response.json();
+        return data.steps;
+      }
+
+      function renderSteps(steps = []) {
+        if (steps.length) {
+          stepsEl.innerHTML = '';
+          for (const step of steps) {
+            const card = document.createElement('div');
+            card.className = `step ${step.id === currentStep ? 'active' : ''}`;
+            card.innerHTML = `<strong>${step.title}</strong><div class="hint">${step.description}</div>`;
+            card.title = step.description;
+            stepsEl.append(card);
+          }
+        } else {
+          for (const card of stepsEl.children) {
+            card.classList.toggle('active', card.textContent.toLowerCase().includes(currentStep));
+          }
+        }
+      }
+
+      function hydrateInspector() {
+        const overlay = getPrimaryOverlay();
+        const clip = getPrimaryClip();
+        const hasProject = Boolean(projectState && clip);
+
+        editEmpty.classList.toggle('hidden', hasProject);
+        editControls.classList.toggle('hidden', !hasProject);
+        timelineEmpty.classList.toggle('hidden', hasProject);
+        timelineControls.classList.toggle('hidden', !hasProject);
+
+        if (!hasProject) return;
+
+        overlayTextInput.value = overlay?.text || '';
+        overlayColorInput.value = overlay?.style?.color || '#FFFFFF';
+        overlayFontSizeInput.value = overlay?.style?.fontSize || 72;
+        overlayStartInput.value = overlay?.startTimeMs || 0;
+        overlayEndInput.value = overlay?.endTimeMs || 1000;
+        playheadInput.max = String(clip.durationMs || projectState.durationMs || 10000);
+        playheadInput.value = String(projectState.metadata?.timeline?.playheadMs || 0);
+        snapToggleBtn.textContent = `Snapping: ${projectState.metadata?.timeline?.snappingEnabled === false ? 'OFF' : 'ON'}`;
+        lockToggleBtn.textContent = `Layer 2 lock: ${projectState.metadata?.timeline?.layerLocks?.['layer-2'] ? 'ON' : 'OFF'}`;
+      }
+
+      function persistLocalDraft() {
+        if (!projectState) return;
+        localStorage.setItem('onscreen:draft', JSON.stringify({ project: projectState, updatedAt: new Date().toISOString() }));
+      }
+
+      async function saveServerDraft() {
+        if (!projectState) return;
+        await fetch('/api/projects/draft', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ project: projectState })
+        });
+      }
+
+      async function saveAllDrafts() {
+        persistLocalDraft();
+        await saveServerDraft();
+        draftInfo.textContent = `Draft saved at ${new Date().toLocaleTimeString()}`;
+      }
+
+      async function resumeDraft() {
+        let restored;
+        const localRaw = localStorage.getItem('onscreen:draft');
+        if (localRaw) {
+          restored = JSON.parse(localRaw);
+        }
+
+        if (!restored?.project) {
+          const response = await fetch('/api/projects/draft');
+          const data = await response.json();
+          restored = data.draft;
+        }
+
+        if (restored?.project) {
+          projectState = restored.project;
+          output.textContent = JSON.stringify(projectState, null, 2);
+          hydrateInspector();
+          setStep('edit');
+          draftInfo.textContent = `Resumed draft from ${new Date(restored.updatedAt).toLocaleString()}`;
+          setStatus('Draft resumed. Continue editing.', 'success');
+        } else {
+          draftInfo.textContent = 'No previous draft found.';
+          setStatus('No previous draft found.', 'warn');
+        }
       }
 
       async function loadTemplates() {
@@ -158,99 +308,151 @@
           templateSelect.append(option);
         }
 
-        output.textContent = `Loaded ${data.templates.length} templates. Click "Create project JSON".`;
-      }
-
-      async function createProject() {
-        if (!uploadedAsset) {
-          setUploadStatus('Upload a media file before creating the project.', 'error');
-          return;
-        }
-
-        output.textContent = 'Creating project…';
-        createBtn.disabled = true;
-
-        try {
-          const response = await fetch('/api/projects/from-template', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              templateId: templateSelect.value,
-              projectName: projectNameInput.value,
-              mediaAsset: uploadedAsset
-            })
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            const detailsHint = data.details?.hint ? ` Hint: ${data.details.hint}` : '';
-            throw new Error(`${data.error || 'Failed to create project.'}${detailsHint}`);
-          }
-
-          output.textContent = JSON.stringify(data, null, 2);
-        } catch (error) {
-          output.textContent = `Project creation failed: ${error.message}`;
-        } finally {
-          createBtn.disabled = false;
-        }
+        output.textContent = `Loaded ${data.templates.length} templates. Start with step 1.`;
       }
 
       async function uploadFile(file) {
-        lastSelectedFile = file;
         uploadedAsset = undefined;
-        retryUploadBtn.style.display = 'none';
         createBtn.disabled = true;
 
         if (!file) {
-          setUploadStatus('Choose a video (MP4/WEBM/MOV) to begin.', 'info');
+          setStatus('Choose a video (MP4/WEBM/MOV) to begin.', 'info');
           return;
         }
 
-        setUploadStatus(`Uploading ${file.name}…`, 'info');
+        setStatus(`Uploading ${file.name}…`);
 
         try {
           const response = await fetch('/api/uploads', {
             method: 'POST',
-            headers: {
-              'content-type': file.type || 'application/octet-stream',
-              'x-file-name': file.name
-            },
+            headers: { 'content-type': file.type || 'application/octet-stream', 'x-file-name': file.name },
             body: file
           });
-
           const data = await response.json();
-
-          if (!response.ok) {
-            const detailsHint = data.details?.hint ? ` Hint: ${data.details.hint}` : '';
-            throw new Error(`${data.error || 'Upload failed.'}${detailsHint}`);
-          }
+          if (!response.ok) throw new Error(data.error || 'Upload failed.');
 
           uploadedAsset = data.asset;
           createBtn.disabled = false;
-          setUploadStatus(
-            `Upload complete: ${uploadedAsset.fileName} (${uploadedAsset.format.toUpperCase()}, ${Math.round(
-              uploadedAsset.fileSize / 1024
-            )} KB).`,
-            'success'
-          );
+          setStatus(`Upload complete: ${uploadedAsset.fileName}`, 'success');
         } catch (error) {
-          retryUploadBtn.style.display = 'inline-block';
-          setUploadStatus(`Upload failed: ${error.message}`, 'error');
-          output.textContent = `Upload failed: ${error.message}`;
+          setStatus(`Upload failed: ${error.message}`, 'error');
         }
       }
 
-      createBtn.addEventListener('click', createProject);
-      retryUploadBtn.addEventListener('click', () => {
-        if (lastSelectedFile) {
-          uploadFile(lastSelectedFile);
+      async function createProject() {
+        if (!uploadedAsset) {
+          setStatus('Upload media before project creation.', 'error');
+          return;
         }
-      });
+
+        const response = await fetch('/api/projects/from-template', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ templateId: templateSelect.value, projectName: projectNameInput.value, mediaAsset: uploadedAsset })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          setStatus(`Project creation failed: ${data.error || 'Unknown error'}`, 'error');
+          return;
+        }
+
+        projectState = data.project;
+        output.textContent = JSON.stringify(data, null, 2);
+        hydrateInspector();
+        await saveAllDrafts();
+        setStep('edit');
+      }
+
+      async function serverUpdate(operation, payload) {
+        if (!projectState) return;
+        const response = await fetch('/api/projects/update', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ project: projectState, operation, payload })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          timelineBadge.textContent = data.error || 'Operation failed';
+          timelineBadge.style.color = '#fecaca';
+          return false;
+        }
+
+        projectState = data.project;
+        output.textContent = JSON.stringify(projectState, null, 2);
+        hydrateInspector();
+        await saveAllDrafts();
+        timelineBadge.textContent = 'Timeline update applied.';
+        timelineBadge.style.color = '#bbf7d0';
+        return true;
+      }
+
+      async function applySceneEdits() {
+        await serverUpdate('bulk-edit-fields', { fieldsPatch: { rankLabel: rankLabelInput.value, accentColor: accentColorInput.value } });
+        await serverUpdate('apply-style-all-scenes', { stylePatch: { fontFamily: sceneFontInput.value } });
+      }
+
+      function applyOverlayTextStyle() {
+        const overlay = getPrimaryOverlay();
+        if (!overlay) {
+          setStatus('No overlay found to edit.', 'warn');
+          return;
+        }
+
+        overlay.text = overlayTextInput.value;
+        overlay.style = { ...(overlay.style || {}), color: overlayColorInput.value, fontSize: Number(overlayFontSizeInput.value) || 72 };
+        projectState.updatedAt = new Date().toISOString();
+        output.textContent = JSON.stringify(projectState, null, 2);
+        persistLocalDraft();
+        setStatus('Overlay text/style updated.', 'success');
+      }
+
+      async function applyTiming() {
+        const overlay = getPrimaryOverlay();
+        const clip = getPrimaryClip();
+        if (!overlay || !clip) return;
+
+        const nextStart = Number(overlayStartInput.value);
+        const nextEnd = Number(overlayEndInput.value);
+
+        if (nextEnd - nextStart < 250) {
+          timelineBadge.textContent = 'Invalid timing: minimum overlay duration is 250ms.';
+          timelineBadge.style.color = '#fde68a';
+          return;
+        }
+
+        await serverUpdate('move-overlay', {
+          clipId: clip.id,
+          overlayId: overlay.id,
+          layerId: `layer-${overlay.layer}`,
+          nextStartTimeMs: nextStart,
+          nextEndTimeMs: nextEnd
+        });
+      }
+
+      toMediaBtn.addEventListener('click', () => setStep('media'));
       mediaFileInput.addEventListener('change', () => uploadFile(mediaFileInput.files?.[0]));
-      loadTemplates().catch((error) => {
-        output.textContent = `Failed to load templates: ${error.message}`;
+      createBtn.addEventListener('click', createProject);
+      applySceneEditsBtn.addEventListener('click', applySceneEdits);
+      applyOverlayBtn.addEventListener('click', applyOverlayTextStyle);
+      applyTimingBtn.addEventListener('click', applyTiming);
+      playheadInput.addEventListener('input', () => {
+        serverUpdate('set-playhead', { playheadMs: Number(playheadInput.value) });
       });
+      snapToggleBtn.addEventListener('click', async () => {
+        const enabled = projectState?.metadata?.timeline?.snappingEnabled === false;
+        await serverUpdate('set-snap-enabled', { enabled });
+      });
+      lockToggleBtn.addEventListener('click', async () => {
+        const locked = !projectState?.metadata?.timeline?.layerLocks?.['layer-2'];
+        await serverUpdate('set-layer-lock', { layerId: 'layer-2', locked });
+      });
+      saveDraftBtn.addEventListener('click', saveAllDrafts);
+      resumeBtn.addEventListener('click', resumeDraft);
+
+      const workflowSteps = await loadWorkflowSteps();
+      renderSteps(workflowSteps);
+      await loadTemplates();
+      setStep('template');
     </script>
   </body>
 </html>
