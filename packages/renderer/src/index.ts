@@ -10,6 +10,7 @@ export type RenderPresetId =
   | "social-1920x1080-30"
   | "social-1920x1080-60";
 export type H264Profile = "baseline" | "main" | "high";
+export type UserFacingPresetTier = "TikTok Fast" | "TikTok Standard" | "TikTok High";
 
 export interface MediaAsset {
   id: string;
@@ -57,6 +58,13 @@ export interface ExportPreset {
   videoBitrateKbps: number;
   audioBitrateKbps: number;
   maxFileSizeMb?: number;
+}
+
+export interface PresetTierEncoding {
+  tier: UserFacingPresetTier;
+  h264Profile: H264Profile;
+  videoBitrateKbps: number;
+  audioBitrateKbps: number;
 }
 
 export const EXPORT_PRESETS: Record<RenderPresetId, ExportPreset> = {
@@ -146,7 +154,28 @@ export const EXPORT_PRESETS: Record<RenderPresetId, ExportPreset> = {
   },
 };
 
-export type RenderQueueStatus = "queued" | "processing" | "failed" | "completed";
+const PRESET_TIER_ENCODINGS: Record<UserFacingPresetTier, PresetTierEncoding> = {
+  "TikTok Fast": {
+    tier: "TikTok Fast",
+    h264Profile: "baseline",
+    videoBitrateKbps: 6000,
+    audioBitrateKbps: 192,
+  },
+  "TikTok Standard": {
+    tier: "TikTok Standard",
+    h264Profile: "main",
+    videoBitrateKbps: 8000,
+    audioBitrateKbps: 256,
+  },
+  "TikTok High": {
+    tier: "TikTok High",
+    h264Profile: "high",
+    videoBitrateKbps: 12000,
+    audioBitrateKbps: 320,
+  },
+};
+
+export type RenderQueueStatus = "queued" | "processing" | "retrying" | "failed" | "completed";
 
 export interface RenderArtifactMetadata {
   artifactId: string;
@@ -210,8 +239,12 @@ export interface RenderQueueStatusEntry {
 
 export interface RenderQueueJob {
   id: string;
+  idempotencyKey: string;
   status: RenderQueueStatus;
   request: RenderRequest;
+  attempt: number;
+  maxAttempts: number;
+  lastFailureReason?: string;
   progressPercent: number;
   statusHistory: RenderQueueStatusEntry[];
   errorMessage?: string;
@@ -226,7 +259,12 @@ export interface RenderRequest {
   project: Project;
   outputPath: string;
   preset: RenderPresetId;
+  presetTier?: UserFacingPresetTier;
+  idempotencyKey: string;
   mediaAssets: MediaAsset[];
+  retry?: {
+    maxAttempts?: number;
+  };
   codec?: SupportedCodec;
   container?: SupportedContainer;
   preflight?: {
@@ -237,6 +275,7 @@ export interface RenderRequest {
 
 export interface RenderResult {
   status: RenderQueueStatus;
+  statusMessage: string;
   job: RenderQueueJob;
   serializedJob?: string;
 }
@@ -462,69 +501,206 @@ function estimateOutputSizeBytes(durationMs: number, preset: ExportPreset): numb
   return Math.round((totalBitrateKbps * 1000 * durationSeconds) / 8);
 }
 
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).sort(([keyA], [keyB]) => keyA.localeCompare(keyB));
+  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`).join(",")}}`;
+}
+
+function buildIdempotencyFingerprint(request: RenderRequest): string {
+  const { idempotencyKey: _idempotencyKey, retry: _retry, ...requestPayload } = request;
+  return stableStringify(requestPayload);
+}
+
+function getStatusMessage(status: RenderQueueStatus, job: RenderQueueJob): string {
+  switch (status) {
+    case "queued":
+      return "Render request queued.";
+    case "processing":
+      return "Render is processing.";
+    case "retrying":
+      return `Render failed and is retrying (attempt ${job.attempt} of ${job.maxAttempts}).`;
+    case "failed":
+      return `Render failed after ${job.attempt} attempt(s): ${job.lastFailureReason ?? "Unknown error"}.`;
+    case "completed":
+      return "Render completed successfully.";
+  }
+}
+
+function withTierEncoding(preset: ExportPreset, tier: UserFacingPresetTier): ExportPreset {
+  const tierEncoding = PRESET_TIER_ENCODINGS[tier];
+  return {
+    ...preset,
+    h264Profile: tierEncoding.h264Profile,
+    videoBitrateKbps: tierEncoding.videoBitrateKbps,
+    audioBitrateKbps: tierEncoding.audioBitrateKbps,
+    label: `${preset.label} (${tier})`,
+  };
+}
+
+interface IdempotentJobRecord {
+  fingerprint: string;
+  result: RenderResult;
+}
+
+const IDEMPOTENT_JOB_STORE = new Map<string, IdempotentJobRecord>();
+
 export function renderProject(request: RenderRequest): RenderResult {
+  const maxAttempts = Math.max(1, request.retry?.maxAttempts ?? 3);
+  const fingerprint = buildIdempotencyFingerprint(request);
+  const existingJob = IDEMPOTENT_JOB_STORE.get(request.idempotencyKey);
+
+  if (existingJob) {
+    if (existingJob.fingerprint !== fingerprint) {
+      const now = new Date().toISOString();
+      const conflictJob: RenderQueueJob = {
+        id: `job_${request.project.id}_${Date.now()}`,
+        idempotencyKey: request.idempotencyKey,
+        status: "failed",
+        request,
+        attempt: 1,
+        maxAttempts,
+        progressPercent: 0,
+        lastFailureReason: "Idempotency key already exists for a different request payload.",
+        errorMessage: "Idempotency key already exists for a different request payload.",
+        statusHistory: [
+          { status: "queued", timestamp: now },
+          { status: "failed", timestamp: now, detail: "idempotency_mismatch" },
+        ],
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      return {
+        status: conflictJob.status,
+        statusMessage: getStatusMessage(conflictJob.status, conflictJob),
+        job: conflictJob,
+      };
+    }
+
+    return existingJob.result;
+  }
+
   const now = new Date().toISOString();
   const jobId = `job_${request.project.id}_${Date.now()}`;
 
-  const baseJob: RenderQueueJob = {
+  let activeJob: RenderQueueJob = {
     id: jobId,
+    idempotencyKey: request.idempotencyKey,
     status: "queued",
     request,
+    attempt: 1,
+    maxAttempts,
     progressPercent: 0,
     statusHistory: [{ status: "queued", timestamp: now }],
     createdAt: now,
     updatedAt: now,
   };
 
-  try {
-    const validation = validateRenderRequestDetailed(request);
-    if (!validation.preset || !validation.isValid) {
-      throw new RenderValidationError(
-        validation.diagnostics.map((diagnostic) => diagnostic.message).join(" "),
-        validation.diagnostics,
-      );
+  const tier = request.presetTier ?? "TikTok Standard";
+
+  while (activeJob.attempt <= activeJob.maxAttempts) {
+    try {
+      const validation = validateRenderRequestDetailed(request);
+      if (!validation.preset || !validation.isValid) {
+        throw new RenderValidationError(
+          validation.diagnostics.map((diagnostic) => diagnostic.message).join(" "),
+          validation.diagnostics,
+        );
+      }
+
+      const preset = withTierEncoding(validation.preset, tier);
+      const renderJob = buildRenderJobFormat(request, jobId);
+
+      const processingAt = new Date().toISOString();
+      activeJob = {
+        ...activeJob,
+        status: "processing",
+        progressPercent: 50,
+        statusHistory: [...activeJob.statusHistory, { status: "processing", timestamp: processingAt }],
+        preflightActions: validation.preflightActions,
+        updatedAt: processingAt,
+      };
+
+      const artifact = createArtifactMetadata(request, preset, jobId);
+      const completedAt = new Date().toISOString();
+      const completedJob: RenderQueueJob = {
+        ...activeJob,
+        status: "completed",
+        progressPercent: 100,
+        artifact,
+        statusHistory: [...activeJob.statusHistory, { status: "completed", timestamp: completedAt }],
+        updatedAt: completedAt,
+      };
+
+      const result: RenderResult = {
+        status: completedJob.status,
+        statusMessage: getStatusMessage(completedJob.status, completedJob),
+        job: completedJob,
+        serializedJob: JSON.stringify(renderJob),
+      };
+
+      IDEMPOTENT_JOB_STORE.set(request.idempotencyKey, { fingerprint, result });
+      return result;
+    } catch (error) {
+      const failureReason = error instanceof Error ? error.message : "Unknown render failure";
+      const failedAt = new Date().toISOString();
+      const failedStatusEntry: RenderQueueStatusEntry = {
+        status: "failed",
+        timestamp: failedAt,
+        detail: failureReason,
+      };
+
+      if (activeJob.attempt < activeJob.maxAttempts) {
+        const retryAt = new Date().toISOString();
+        activeJob = {
+          ...activeJob,
+          status: "retrying",
+          progressPercent: 0,
+          lastFailureReason: failureReason,
+          errorMessage: failureReason,
+          validationDiagnostics: error instanceof RenderValidationError ? error.diagnostics : undefined,
+          statusHistory: [...activeJob.statusHistory, failedStatusEntry, { status: "retrying", timestamp: retryAt }],
+          attempt: activeJob.attempt + 1,
+          updatedAt: retryAt,
+        };
+        continue;
+      }
+
+      const terminalFailedJob: RenderQueueJob = {
+        ...activeJob,
+        status: "failed",
+        progressPercent: 0,
+        lastFailureReason: failureReason,
+        errorMessage: failureReason,
+        validationDiagnostics: error instanceof RenderValidationError ? error.diagnostics : undefined,
+        statusHistory: [...activeJob.statusHistory, failedStatusEntry],
+        updatedAt: failedAt,
+      };
+
+      const result: RenderResult = {
+        status: terminalFailedJob.status,
+        statusMessage: getStatusMessage(terminalFailedJob.status, terminalFailedJob),
+        job: terminalFailedJob,
+      };
+
+      IDEMPOTENT_JOB_STORE.set(request.idempotencyKey, { fingerprint, result });
+      return result;
     }
-
-    const preset = validation.preset;
-    const renderJob = buildRenderJobFormat(request, jobId);
-
-    const processingAt = new Date().toISOString();
-    const processingJob: RenderQueueJob = {
-      ...baseJob,
-      status: "processing",
-      progressPercent: 50,
-      statusHistory: [...baseJob.statusHistory, { status: "processing", timestamp: processingAt }],
-      preflightActions: validation.preflightActions,
-      updatedAt: processingAt,
-    };
-
-    const artifact = createArtifactMetadata(request, preset, jobId);
-    const completedAt = new Date().toISOString();
-    const completedJob: RenderQueueJob = {
-      ...processingJob,
-      status: "completed",
-      progressPercent: 100,
-      artifact,
-      statusHistory: [...processingJob.statusHistory, { status: "completed", timestamp: completedAt }],
-      updatedAt: completedAt,
-    };
-
-    return {
-      status: completedJob.status,
-      job: completedJob,
-      serializedJob: JSON.stringify(renderJob),
-    };
-  } catch (error) {
-    const failedAt = new Date().toISOString();
-    const failedJob: RenderQueueJob = {
-      ...baseJob,
-      status: "failed",
-      errorMessage: error instanceof Error ? error.message : "Unknown render failure",
-      validationDiagnostics: error instanceof RenderValidationError ? error.diagnostics : undefined,
-      statusHistory: [...baseJob.statusHistory, { status: "failed", timestamp: failedAt }],
-      updatedAt: failedAt,
-    };
-
-    return { status: failedJob.status, job: failedJob };
   }
+
+  const exhaustedResult: RenderResult = {
+    status: "failed",
+    statusMessage: "Render failed after exhausting retry attempts.",
+    job: activeJob,
+  };
+  IDEMPOTENT_JOB_STORE.set(request.idempotencyKey, { fingerprint, result: exhaustedResult });
+  return exhaustedResult;
 }
