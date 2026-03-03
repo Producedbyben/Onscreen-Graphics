@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runAutomationBatch } from "../dist/automation.js";
+import { createAutomationRunner, runAutomationBatch } from "../dist/automation.js";
 
 function createProjectFixture() {
   return {
@@ -90,4 +90,25 @@ test("runAutomationBatch bulk style apply patches all matching overlays", () => 
   assert.equal(result.project.tracks[0].clips[0].overlays[0].style.color, "#FFEE00");
   assert.equal(result.project.tracks[0].clips[0].overlays[1].style.color, undefined);
   assert.equal(result.appliedOperations[0].details, "Applied style patch to 1 overlay(s).");
+});
+
+
+test("createAutomationRunner returns isolated deterministic runs", () => {
+  const fixture = createProjectFixture();
+  const runner = createAutomationRunner();
+  const operations = [
+    {
+      type: "duplicate-with-replacements",
+      clipId: "clip-a",
+      duplicateCount: 1,
+      replacements: { Team: "World", Hello: "Hi" }
+    }
+  ];
+
+  const first = runner.run(fixture, operations);
+  const second = runner.run(fixture, operations);
+
+  assert.equal(fixture.tracks[0].clips.length, 1);
+  assert.deepEqual(first.project.tracks[0].clips.map((clip) => clip.id), second.project.tracks[0].clips.map((clip) => clip.id));
+  assert.equal(first.project.tracks[0].clips[1].overlays[0].style.text, "Hi World");
 });

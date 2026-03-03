@@ -20,6 +20,10 @@ export interface AutomationBatchResult {
   appliedOperations: Array<{ type: AutomationOperation["type"]; details: string }>;
 }
 
+export interface AutomationRunner {
+  run(project: Project, operations: AutomationOperation[]): AutomationBatchResult;
+}
+
 function cloneProject(project: Project): Project {
   return JSON.parse(JSON.stringify(project));
 }
@@ -90,23 +94,33 @@ function applyBulkStyle(project: Project, operation: BulkStyleApplyOperation): {
   };
 }
 
+export function createAutomationRunner(): AutomationRunner {
+  return {
+    run(project, operations) {
+      const workingProject = cloneProject(project);
+      const appliedOperations: AutomationBatchResult["appliedOperations"] = [];
+
+      for (const operation of operations) {
+        if (operation.type === "duplicate-with-replacements") {
+          const result = duplicateClipWithReplacements(workingProject, operation);
+          appliedOperations.push({ type: operation.type, details: result.detail });
+          continue;
+        }
+
+        if (operation.type === "bulk-style-apply") {
+          const result = applyBulkStyle(workingProject, operation);
+          appliedOperations.push({ type: operation.type, details: result.detail });
+        }
+      }
+
+      workingProject.updatedAt = new Date().toISOString();
+      return { project: workingProject, appliedOperations };
+    }
+  };
+}
+
+const defaultRunner = createAutomationRunner();
+
 export function runAutomationBatch(project: Project, operations: AutomationOperation[]): AutomationBatchResult {
-  const workingProject = cloneProject(project);
-  const appliedOperations: AutomationBatchResult["appliedOperations"] = [];
-
-  for (const operation of operations) {
-    if (operation.type === "duplicate-with-replacements") {
-      const result = duplicateClipWithReplacements(workingProject, operation);
-      appliedOperations.push({ type: operation.type, details: result.detail });
-      continue;
-    }
-
-    if (operation.type === "bulk-style-apply") {
-      const result = applyBulkStyle(workingProject, operation);
-      appliedOperations.push({ type: operation.type, details: result.detail });
-    }
-  }
-
-  workingProject.updatedAt = new Date().toISOString();
-  return { project: workingProject, appliedOperations };
+  return defaultRunner.run(project, operations);
 }

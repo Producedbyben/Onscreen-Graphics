@@ -177,8 +177,17 @@ export interface ProjectRevision {
   snapshot: Project;
 }
 
+export interface CollaborationBranchState {
+  id: string;
+  headRevisionId: string;
+  updatedAt: string;
+  authorId?: string;
+}
+
 export interface CollaborationMetadata {
   headRevisionId?: string;
+  branchId?: string;
+  branches?: CollaborationBranchState[];
   pendingOperations?: Array<{
     id: string;
     authorId: string;
