@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 1,
   "id": "live-scoreboard-vertical",
   "name": "Live Scoreboard (Vertical)",
   "category": "scoreboards",
@@ -14,14 +15,14 @@
     "awayTeam": "Away Team"
   },
   "editableFields": [
-    { "id": "matchLabel", "label": "Match Label", "type": "text", "defaultValue": "Match Day" },
-    { "id": "homeTeam", "label": "Home Team", "type": "text", "defaultValue": "Home Team" },
-    { "id": "awayTeam", "label": "Away Team", "type": "text", "defaultValue": "Away Team" },
-    { "id": "homeAvatar", "label": "Home Avatar", "type": "avatar", "defaultValue": "home-badge" },
-    { "id": "awayAvatar", "label": "Away Avatar", "type": "avatar", "defaultValue": "away-badge" },
-    { "id": "primaryColor", "label": "Primary Color", "type": "color", "defaultValue": "#0EA5E9" },
-    { "id": "secondaryColor", "label": "Secondary Color", "type": "color", "defaultValue": "#1F2937" },
-    { "id": "scoreIcon", "label": "Score Icon", "type": "icon", "defaultValue": "bolt" }
+    { "id": "matchLabel", "label": "Match Label", "type": "text", "defaultValue": "Match Day", "maxChars": 24, "allowedStyles": ["uppercase", "condensed"], "positionPreset": "header" },
+    { "id": "homeTeam", "label": "Home Team", "type": "text", "defaultValue": "Home Team", "maxChars": 20, "allowedStyles": ["bold", "shadow"], "positionPreset": "content" },
+    { "id": "awayTeam", "label": "Away Team", "type": "text", "defaultValue": "Away Team", "maxChars": 20, "allowedStyles": ["bold", "shadow"], "positionPreset": "content" },
+    { "id": "homeAvatar", "label": "Home Avatar", "type": "avatar", "defaultValue": "home-badge", "allowedStyles": ["circle", "team-color-ring"], "positionPreset": "content" },
+    { "id": "awayAvatar", "label": "Away Avatar", "type": "avatar", "defaultValue": "away-badge", "allowedStyles": ["circle", "team-color-ring"], "positionPreset": "content" },
+    { "id": "primaryColor", "label": "Primary Color", "type": "color", "defaultValue": "#0EA5E9", "allowedStyles": ["solid", "gradient-start"], "positionPreset": "header" },
+    { "id": "secondaryColor", "label": "Secondary Color", "type": "color", "defaultValue": "#1F2937", "allowedStyles": ["solid", "gradient-end"], "positionPreset": "footer" },
+    { "id": "scoreIcon", "label": "Score Icon", "type": "icon", "defaultValue": "bolt", "allowedStyles": ["filled", "pulse"], "positionPreset": "badge" }
   ],
   "layoutZones": [
     { "id": "header", "label": "Header", "kind": "title", "x": 72, "y": 120, "width": 936, "height": 180, "safeAreaAware": true },

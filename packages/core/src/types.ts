@@ -42,6 +42,9 @@ export interface TemplateEditableField {
   type: "text" | "color" | "avatar" | "icon";
   defaultValue: string;
   description?: string;
+  maxChars?: number;
+  allowedStyles?: string[];
+  positionPreset?: "header" | "content" | "footer" | "badge" | string;
 }
 
 export interface TemplateLayoutZone {
@@ -74,6 +77,7 @@ export interface TemplateSceneRule {
 }
 
 export interface TemplateDefinition {
+  schemaVersion: 1;
   id: string;
   name: string;
   category: "rankings" | "scoreboards" | "listicles" | string;

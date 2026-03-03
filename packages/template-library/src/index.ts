@@ -1,13 +1,12 @@
 import type { TemplateDefinition } from "@onscreen/core";
+import { migrateTemplateDefinition } from "./migrations";
 import rankingVideosTemplate from "./templates/ranking-videos.json";
 import scoreboardsTemplate from "./templates/scoreboards.json";
 import countdownListTemplate from "./templates/countdown-list.json";
 
-export const templates: TemplateDefinition[] = [
-  rankingVideosTemplate as TemplateDefinition,
-  scoreboardsTemplate as TemplateDefinition,
-  countdownListTemplate as TemplateDefinition
-];
+const rawTemplates: unknown[] = [rankingVideosTemplate, scoreboardsTemplate, countdownListTemplate];
+
+export const templates: TemplateDefinition[] = rawTemplates.map((template) => migrateTemplateDefinition(template));
 
 export function getTemplateById(templateId: string): TemplateDefinition | undefined {
   return templates.find((template) => template.id === templateId);

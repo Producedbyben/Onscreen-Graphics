@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 1,
   "id": "countdown-list-vertical",
   "name": "Countdown List (Vertical)",
   "category": "listicles",
@@ -13,11 +14,11 @@
     "cta": "Follow for part 2"
   },
   "editableFields": [
-    { "id": "headline", "label": "Headline", "type": "text", "defaultValue": "5 Things You Need to Know" },
-    { "id": "cta", "label": "Call to Action", "type": "text", "defaultValue": "Follow for part 2" },
-    { "id": "highlightColor", "label": "Highlight Color", "type": "color", "defaultValue": "#F59E0B" },
-    { "id": "backgroundTint", "label": "Background Tint", "type": "color", "defaultValue": "#0F172A" },
-    { "id": "countdownIcon", "label": "Countdown Icon", "type": "icon", "defaultValue": "clock" }
+    { "id": "headline", "label": "Headline", "type": "text", "defaultValue": "5 Things You Need to Know", "maxChars": 44, "allowedStyles": ["bold", "uppercase"], "positionPreset": "header" },
+    { "id": "cta", "label": "Call to Action", "type": "text", "defaultValue": "Follow for part 2", "maxChars": 30, "allowedStyles": ["semibold", "underline"], "positionPreset": "footer" },
+    { "id": "highlightColor", "label": "Highlight Color", "type": "color", "defaultValue": "#F59E0B", "allowedStyles": ["solid", "gradient-start"], "positionPreset": "content" },
+    { "id": "backgroundTint", "label": "Background Tint", "type": "color", "defaultValue": "#0F172A", "allowedStyles": ["solid", "overlay-60"], "positionPreset": "content" },
+    { "id": "countdownIcon", "label": "Countdown Icon", "type": "icon", "defaultValue": "clock", "allowedStyles": ["outlined", "filled"], "positionPreset": "badge" }
   ],
   "layoutZones": [
     { "id": "headline", "label": "Headline", "kind": "title", "x": 64, "y": 120, "width": 952, "height": 220, "safeAreaAware": true },

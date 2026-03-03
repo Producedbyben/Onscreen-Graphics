@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 1,
   "id": "ranking-videos-vertical",
   "name": "Ranking Videos (Vertical)",
   "category": "rankings",
@@ -13,11 +14,11 @@
     "subtitle": "Season Highlights"
   },
   "editableFields": [
-    { "id": "title", "label": "Title", "type": "text", "defaultValue": "Top 10 Plays" },
-    { "id": "subtitle", "label": "Subtitle", "type": "text", "defaultValue": "Season Highlights" },
-    { "id": "accentColor", "label": "Accent Color", "type": "color", "defaultValue": "#FF4D6D" },
-    { "id": "cardColor", "label": "Card Color", "type": "color", "defaultValue": "#111827" },
-    { "id": "rankIcon", "label": "Rank Icon", "type": "icon", "defaultValue": "trophy" }
+    { "id": "title", "label": "Title", "type": "text", "defaultValue": "Top 10 Plays", "maxChars": 36, "allowedStyles": ["bold", "uppercase"], "positionPreset": "header" },
+    { "id": "subtitle", "label": "Subtitle", "type": "text", "defaultValue": "Season Highlights", "maxChars": 48, "allowedStyles": ["regular", "italic"], "positionPreset": "header" },
+    { "id": "accentColor", "label": "Accent Color", "type": "color", "defaultValue": "#FF4D6D", "allowedStyles": ["solid", "gradient-start"], "positionPreset": "content" },
+    { "id": "cardColor", "label": "Card Color", "type": "color", "defaultValue": "#111827", "allowedStyles": ["solid", "opacity-80"], "positionPreset": "content" },
+    { "id": "rankIcon", "label": "Rank Icon", "type": "icon", "defaultValue": "trophy", "allowedStyles": ["outlined", "filled"], "positionPreset": "badge" }
   ],
   "layoutZones": [
     { "id": "safe-top", "label": "Safe Top", "kind": "title", "x": 60, "y": 140, "width": 960, "height": 220, "safeAreaAware": true },
