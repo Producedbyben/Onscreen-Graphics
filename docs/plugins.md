@@ -76,6 +76,51 @@ UI surfaces can conditionally render controls by reading `registry.getCapabiliti
 
 Example: hide "Import CSV" if `data-providers` is false.
 
+
+## Contribution ID Collision Policy
+
+By default, `PluginRegistry` rejects duplicate contribution IDs across plugins. The registry checks collisions for all contribution categories:
+
+- `overlayElementTypes`
+- `animationPresets`
+- `templatePacks`
+- `dataProviders`
+
+If a collision is detected, registration fails with an actionable error that includes both plugin IDs.
+
+```ts
+const registry = new PluginRegistry(); // default policy: reject
+
+await registry.register({ id: "alpha", name: "Alpha", version: "1.0.0", contributions: {
+  overlayElementTypes: [{ id: "score-bug", label: "Score Bug" }],
+} });
+
+await registry.register({ id: "beta", name: "Beta", version: "1.0.0", contributions: {
+  overlayElementTypes: [{ id: "score-bug", label: "Score Bug 2" }],
+} });
+// throws: Plugin "beta" cannot register overlay element type "score-bug"
+// because it is already provided by plugin "alpha".
+```
+
+### Optional namespaced override mode
+
+Hosts can opt in to `allow-namespaced-override` when they need controlled replacement behavior.
+
+```ts
+const registry = new PluginRegistry({
+  duplicateContributionPolicy: "allow-namespaced-override",
+});
+```
+
+In this mode, duplicates are only allowed when the contribution ID is namespaced to the overriding plugin ID (default delimiter: `:`). This prevents arbitrary ID takeover while allowing intentional ownership of a namespace.
+
+Safe namespacing examples:
+
+- plugin `acme-sports` owns IDs such as `acme-sports:score-bug`, `acme-sports:bounce-in`
+- plugin `studio-data` owns IDs such as `studio-data:csv`, `studio-data:live-feed`
+
+If an overriding plugin is disposed, the registry restores the previous contribution for the same ID.
+
 ## Contribution Query APIs
 
 After registration, the host can query contributions with:
