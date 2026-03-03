@@ -949,12 +949,15 @@ function createProjectRevision(projectId, project, options = {}) {
   const record = loadProjectRevisionRecord(projectId);
   const timestamp = new Date().toISOString();
   const previousRevision = record.revisions.at(-1);
+  const branchId = typeof options.branchId === "string" ? options.branchId : (normalizedProject.collaboration?.branchId ?? "main");
+  const authorId = typeof options.authorId === "string" ? options.authorId : undefined;
+
   const revision = {
     id: randomUUID(),
     projectId,
     parentRevisionId: options.parentRevisionId ?? previousRevision?.id,
     source: options.source === "author" ? "author" : "system",
-    authorId: typeof options.authorId === "string" ? options.authorId : undefined,
+    authorId,
     timestamp,
     patchSummary: createRevisionPatchSummary(options.patchSummary),
     snapshot: {
@@ -962,6 +965,10 @@ function createProjectRevision(projectId, project, options = {}) {
       collaboration: {
         ...(normalizedProject.collaboration ?? {}),
         headRevisionId: undefined,
+        branchId,
+        branches: Array.isArray(normalizedProject.collaboration?.branches)
+          ? normalizedProject.collaboration.branches
+          : [],
         pendingOperations: Array.isArray(normalizedProject.collaboration?.pendingOperations)
           ? normalizedProject.collaboration.pendingOperations
           : []
@@ -970,6 +977,16 @@ function createProjectRevision(projectId, project, options = {}) {
   };
 
   revision.snapshot.collaboration.headRevisionId = revision.id;
+  revision.snapshot.collaboration.branches = [
+    ...revision.snapshot.collaboration.branches.filter((branch) => branch?.id !== branchId),
+    {
+      id: branchId,
+      headRevisionId: revision.id,
+      updatedAt: timestamp,
+      ...(authorId ? { authorId } : {})
+    }
+  ];
+
   record.revisions.push(revision);
   saveProjectRevisionRecord(projectId, record);
   return revision;
@@ -996,9 +1013,14 @@ function restoreProjectRevision(projectId, revisionId) {
   }
 
   const project = normalizeProjectCaptions(JSON.parse(JSON.stringify(revision.snapshot)));
+  const branchId = project.collaboration?.branchId ?? "main";
   project.collaboration = {
     ...(project.collaboration ?? {}),
     headRevisionId: revision.id,
+    branchId,
+    branches: Array.isArray(project.collaboration?.branches)
+      ? project.collaboration.branches
+      : [{ id: branchId, headRevisionId: revision.id, updatedAt: revision.timestamp, ...(revision.authorId ? { authorId: revision.authorId } : {}) }],
     pendingOperations: Array.isArray(project.collaboration?.pendingOperations) ? project.collaboration.pendingOperations : []
   };
 
@@ -1205,6 +1227,7 @@ function startWebServer(options = {}) {
           source: parsedBody.source,
           authorId: parsedBody.authorId,
           parentRevisionId: parsedBody.parentRevisionId,
+          branchId: parsedBody.branchId,
           patchSummary: parsedBody.patchSummary
         });
         sendJson(res, 201, { revision });
@@ -1256,6 +1279,7 @@ function startWebServer(options = {}) {
         const revision = createProjectRevision(projectId, batchResult.project, {
           source: parsedBody.source ?? "system",
           authorId: parsedBody.authorId,
+          branchId: parsedBody.branchId,
           patchSummary: parsedBody.patchSummary ?? {
             notes: "Automation batch run"
           }

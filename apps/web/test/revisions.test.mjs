@@ -57,12 +57,15 @@ test("revision endpoints create, list, and restore snapshots", async () => {
     body: JSON.stringify({
       project,
       source: "system",
+      branchId: "feature-a",
       patchSummary: { notes: "rename" }
     })
   });
   assert.equal(secondResponse.status, 201);
   const second = await secondResponse.json();
   assert.equal(second.revision.parentRevisionId, created.revision.id);
+  assert.equal(second.revision.snapshot.collaboration.branchId, "feature-a");
+  assert.equal(second.revision.snapshot.collaboration.branches[0].id, "feature-a");
 
   const listResponse = await fetch(`http://127.0.0.1:${port}/api/projects/revision-test-project/revisions`);
   assert.equal(listResponse.status, 200);
@@ -77,6 +80,7 @@ test("revision endpoints create, list, and restore snapshots", async () => {
   const restored = await restoreResponse.json();
   assert.equal(restored.project.name, "Revision test");
   assert.equal(restored.project.collaboration.headRevisionId, created.revision.id);
+  assert.ok(Array.isArray(restored.project.collaboration.branches));
 });
 
 test("automation endpoint runs deterministic transforms and writes revision", async () => {
