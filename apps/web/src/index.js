@@ -41,13 +41,74 @@ const SAFE_ZONE_PRESETS = {
 
 const SAFE_ZONE_DEFAULT_OPACITY = 0.35;
 
+const CAPTION_STYLE_PACKS = [
+  {
+    id: "classic",
+    label: "Classic",
+    description: "Balanced subtitle treatments for general creator content.",
+    highlightModes: ["word", "segment", "none"],
+    presets: [
+      { id: "classic-white", label: "Classic White", textColor: "#FFFFFF", emphasisColor: "#FACC15", fontFamily: "Inter", fontWeight: 700 },
+      { id: "classic-shadow", label: "Classic Shadow", textColor: "#FFFFFF", emphasisColor: "#22D3EE", backgroundColor: "#0F172ACC", fontFamily: "Inter", fontWeight: 700 }
+    ]
+  },
+  {
+    id: "sports",
+    label: "Sports",
+    description: "High-energy sports captions with punchy emphasis colors.",
+    highlightModes: ["word", "karaoke", "segment"],
+    presets: [
+      { id: "bold-yellow", label: "Bold Yellow", textColor: "#FFFFFF", emphasisColor: "#FDE047", backgroundColor: "#1E293B", fontFamily: "Sora", fontWeight: 800, textTransform: "uppercase" },
+      { id: "arena-neon", label: "Arena Neon", textColor: "#E2E8F0", emphasisColor: "#22D3EE", backgroundColor: "#0B1220D9", fontFamily: "Sora", fontWeight: 700, textTransform: "uppercase" }
+    ]
+  },
+  {
+    id: "creator",
+    label: "Creator",
+    description: "Friendly creator-facing subtitles for explainers and vlogs.",
+    highlightModes: ["word", "segment", "karaoke", "none"],
+    presets: [
+      { id: "soft-pop", label: "Soft Pop", textColor: "#F8FAFC", emphasisColor: "#FB7185", backgroundColor: "#1E1B4BCC", fontFamily: "Nunito", fontWeight: 700 },
+      { id: "clean-minimal", label: "Clean Minimal", textColor: "#FFFFFF", emphasisColor: "#A78BFA", fontFamily: "Inter", fontWeight: 600 }
+    ]
+  },
+  {
+    id: "news",
+    label: "News",
+    description: "Structured lower-third style captions for updates and commentary.",
+    highlightModes: ["segment", "word", "none"],
+    presets: [
+      { id: "ticker-blue", label: "Ticker Blue", textColor: "#FFFFFF", emphasisColor: "#60A5FA", backgroundColor: "#0F172ACC", fontFamily: "Roboto", fontWeight: 700, textTransform: "uppercase" },
+      { id: "briefing-slate", label: "Briefing Slate", textColor: "#E2E8F0", emphasisColor: "#F97316", backgroundColor: "#111827D9", fontFamily: "Roboto", fontWeight: 600 }
+    ]
+  }
+];
+
 const DEFAULT_CAPTION_STYLE_PRESET = {
   presetId: "classic-white",
-  packId: "core-defaults",
+  packId: "classic",
   label: "Classic White"
 };
 
 const DEFAULT_CAPTION_HIGHLIGHT_MODE = "word";
+
+function getCaptionStylePackById(packId) {
+  return CAPTION_STYLE_PACKS.find((pack) => pack.id === packId);
+}
+
+function getCaptionPreset(packId, presetId) {
+  return getCaptionStylePackById(packId)?.presets.find((preset) => preset.id === presetId);
+}
+
+function listCaptionStylePacks() {
+  return CAPTION_STYLE_PACKS.map((pack) => ({
+    id: pack.id,
+    label: pack.label,
+    description: pack.description,
+    highlightModes: [...pack.highlightModes],
+    presets: pack.presets.map((preset) => ({ ...preset }))
+  }));
+}
 
 function createDefaultCaptions() {
   return {
@@ -63,10 +124,22 @@ function normalizeProjectCaptions(project) {
   }
 
   const existing = project.captions ?? {};
+  const mergedStylePreset = { ...DEFAULT_CAPTION_STYLE_PRESET, ...(existing.stylePreset ?? {}) };
+  const resolvedPack = getCaptionStylePackById(mergedStylePreset.packId) ?? getCaptionStylePackById(DEFAULT_CAPTION_STYLE_PRESET.packId);
+  const resolvedPreset = getCaptionPreset(resolvedPack.id, mergedStylePreset.presetId) ?? resolvedPack.presets[0];
+  const candidateHighlightMode = existing.highlightMode ?? DEFAULT_CAPTION_HIGHLIGHT_MODE;
+
   project.captions = {
     segments: Array.isArray(existing.segments) ? existing.segments : [],
-    stylePreset: { ...DEFAULT_CAPTION_STYLE_PRESET, ...(existing.stylePreset ?? {}) },
-    highlightMode: existing.highlightMode ?? DEFAULT_CAPTION_HIGHLIGHT_MODE
+    stylePreset: {
+      ...mergedStylePreset,
+      packId: resolvedPack.id,
+      presetId: resolvedPreset.id,
+      label: resolvedPreset.label
+    },
+    highlightMode: resolvedPack.highlightModes.includes(candidateHighlightMode)
+      ? candidateHighlightMode
+      : resolvedPack.highlightModes[0]
   };
 
   return project;
@@ -707,6 +780,11 @@ function startWebServer() {
       return;
     }
 
+    if (method === "GET" && url === "/api/captions/style-packs") {
+      sendJson(res, 200, { packs: listCaptionStylePacks(), defaultPreset: DEFAULT_CAPTION_STYLE_PRESET });
+      return;
+    }
+
     if (method === "GET" && url === "/api/workflow/steps") {
       sendJson(res, 200, {
         steps: [
@@ -856,8 +934,10 @@ export {
   createProjectFromTemplate,
   duplicateScene,
   importMediaAndCreateProject,
+  listCaptionStylePacks,
   listTemplateMetadata,
   moveOverlayWithTimelineRules,
+  normalizeProjectCaptions,
   requestTranscription,
   runCreateFromTemplateFlow,
   saveDraft,

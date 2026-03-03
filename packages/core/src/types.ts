@@ -112,6 +112,25 @@ export interface CaptionStyleMetadata {
   label?: string;
 }
 
+export interface CaptionStylePresetDefinition {
+  id: string;
+  label: string;
+  textColor: string;
+  emphasisColor?: string;
+  backgroundColor?: string;
+  fontFamily?: string;
+  fontWeight?: number;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+}
+
+export interface CaptionStylePack {
+  id: string;
+  label: string;
+  description: string;
+  highlightModes: CaptionHighlightMode[];
+  presets: CaptionStylePresetDefinition[];
+}
+
 export type CaptionHighlightMode = "word" | "segment" | "karaoke" | "none" | string;
 
 export interface CaptionSettings {
