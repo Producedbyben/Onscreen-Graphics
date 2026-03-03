@@ -92,6 +92,34 @@ export interface TemplateDefinition {
   sceneSequencingRules: TemplateSceneRule[];
 }
 
+export interface CaptionWord {
+  text: string;
+  startTimeMs: number;
+  endTimeMs: number;
+}
+
+export interface CaptionSegment {
+  text: string;
+  startTimeMs: number;
+  endTimeMs: number;
+  words?: CaptionWord[];
+}
+
+export interface CaptionStyleMetadata {
+  presetId: string;
+  packId?: string;
+  variantId?: string;
+  label?: string;
+}
+
+export type CaptionHighlightMode = "word" | "segment" | "karaoke" | "none" | string;
+
+export interface CaptionSettings {
+  segments: CaptionSegment[];
+  stylePreset: CaptionStyleMetadata;
+  highlightMode: CaptionHighlightMode;
+}
+
 export interface SafeZoneGuideSettings {
   enabled: boolean;
   opacity: number;
@@ -111,6 +139,7 @@ export interface Project {
   height: number;
   durationMs: number;
   tracks: Track[];
+  captions?: CaptionSettings;
   template?: TemplateDefinition;
   createdAt: string;
   updatedAt: string;
