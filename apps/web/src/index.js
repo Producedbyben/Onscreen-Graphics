@@ -41,6 +41,65 @@ const SAFE_ZONE_PRESETS = {
 
 const SAFE_ZONE_DEFAULT_OPACITY = 0.35;
 
+const DEFAULT_CAPTION_STYLE_PRESET = {
+  presetId: "classic-white",
+  packId: "core-defaults",
+  label: "Classic White"
+};
+
+const DEFAULT_CAPTION_HIGHLIGHT_MODE = "word";
+
+function createDefaultCaptions() {
+  return {
+    segments: [],
+    stylePreset: { ...DEFAULT_CAPTION_STYLE_PRESET },
+    highlightMode: DEFAULT_CAPTION_HIGHLIGHT_MODE
+  };
+}
+
+function normalizeProjectCaptions(project) {
+  if (!project || typeof project !== "object") {
+    return project;
+  }
+
+  const existing = project.captions ?? {};
+  project.captions = {
+    segments: Array.isArray(existing.segments) ? existing.segments : [],
+    stylePreset: { ...DEFAULT_CAPTION_STYLE_PRESET, ...(existing.stylePreset ?? {}) },
+    highlightMode: existing.highlightMode ?? DEFAULT_CAPTION_HIGHLIGHT_MODE
+  };
+
+  return project;
+}
+
+async function requestTranscription(mediaAsset) {
+  if (!mediaAsset?.id || !mediaAsset?.filePath) {
+    throw validationError("Media asset reference is required for transcription.");
+  }
+
+  return {
+    provider: {
+      id: "placeholder-transcriber",
+      label: "Placeholder Transcriber",
+      supportsWordTimestamps: true
+    },
+    segments: [
+      {
+        text: "Add your first caption segment here.",
+        startTimeMs: 0,
+        endTimeMs: 1800,
+        words: [
+          { text: "Add", startTimeMs: 0, endTimeMs: 300 },
+          { text: "your", startTimeMs: 300, endTimeMs: 550 },
+          { text: "first", startTimeMs: 550, endTimeMs: 900 },
+          { text: "caption", startTimeMs: 900, endTimeMs: 1300 },
+          { text: "segment", startTimeMs: 1300, endTimeMs: 1800 }
+        ]
+      }
+    ]
+  };
+}
+
 function getSafeZoneGuideRects(width, height, preset = "tiktok-9:16") {
   const insets = SAFE_ZONE_PRESETS[preset] ?? SAFE_ZONE_PRESETS["tiktok-9:16"];
   const safeWidth = Math.max(0, Number(width) || 0);
@@ -202,6 +261,7 @@ function createProjectScaffold({ projectName, aspectRatio = "9:16", durationMs =
       { id: `${projectId}-track-video`, name: "Background Video", type: "video", clips: [], muted: false, locked: false },
       { id: `${projectId}-track-overlay`, name: "Overlays", type: "overlay", clips: [], muted: false, locked: false }
     ],
+    captions: createDefaultCaptions(),
     scenes: [],
     template: undefined,
     createdAt: now,
@@ -475,7 +535,7 @@ function buildDemoSceneData(project) {
   return nextProject;
 }
 
-function runCreateFromTemplateFlow(selectedTemplateId, projectName, mediaAsset) {
+async function runCreateFromTemplateFlow(selectedTemplateId, projectName, mediaAsset) {
   const templateOptions = listTemplateMetadata();
 
   let project = importMediaAndCreateProject({
@@ -490,6 +550,12 @@ function runCreateFromTemplateFlow(selectedTemplateId, projectName, mediaAsset) 
   project = applyStyleToAllScenes(project, { fontFamily: "Sora", textTransform: "uppercase" });
   project = setTimelineLayerLock(project, "layer-1", true);
 
+  const transcription = await requestTranscription(mediaAsset);
+  project.captions = {
+    ...(project.captions ?? createDefaultCaptions()),
+    segments: transcription.segments
+  };
+
   const fitResult = autoFitTextWithinBoundingBox({
     text: "WORLD'S FASTEST GOAL SCORERS",
     boxWidth: 860,
@@ -501,7 +567,7 @@ function runCreateFromTemplateFlow(selectedTemplateId, projectName, mediaAsset) 
     project.metadata.warnings.push(fitResult.warning);
   }
 
-  return { project, fitResult };
+  return { project, fitResult, transcriptionProvider: transcription.provider };
 }
 
 function getPrimaryClip(project) {
@@ -560,9 +626,10 @@ function sendJson(res, statusCode, payload) {
 }
 
 function saveDraft(project) {
+  const normalizedProject = normalizeProjectCaptions(JSON.parse(JSON.stringify(project)));
   const now = new Date().toISOString();
   const record = {
-    project,
+    project: normalizedProject,
     updatedAt: now
   };
 
@@ -576,7 +643,11 @@ function loadDraft() {
   }
 
   const raw = readFileSync(draftPath, "utf8");
-  return JSON.parse(raw);
+  const parsed = JSON.parse(raw);
+  if (parsed?.project) {
+    normalizeProjectCaptions(parsed.project);
+  }
+  return parsed;
 }
 
 async function handleUploadRequest(req, res) {
@@ -663,12 +734,28 @@ function startWebServer() {
       return;
     }
 
+    if (method === "POST" && url === "/api/transcriptions/request") {
+      try {
+        const parsedBody = await parseJsonBody(req);
+        const transcription = await requestTranscription(parsedBody.mediaAsset);
+        sendJson(res, 200, transcription);
+      } catch (error) {
+        const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
+        sendJson(res, statusCode, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
+      }
+      return;
+    }
+
     if (method === "POST" && url === "/api/projects/from-template") {
       try {
         const parsedBody = await parseJsonBody(req);
         const { templateId, projectName, mediaAsset } = parsedBody;
 
-        const result = runCreateFromTemplateFlow(templateId, projectName, mediaAsset);
+        const result = await runCreateFromTemplateFlow(templateId, projectName, mediaAsset);
         const preset = result.project?.metadata?.safeZoneGuides?.preset;
         const guides = getSafeZoneGuideRects(result.project?.width, result.project?.height, preset);
         sendJson(res, 200, { ...result, guides });
@@ -771,7 +858,10 @@ export {
   importMediaAndCreateProject,
   listTemplateMetadata,
   moveOverlayWithTimelineRules,
+  requestTranscription,
   runCreateFromTemplateFlow,
+  saveDraft,
+  loadDraft,
   setTimelineLayerLock,
   startWebServer,
   updateProjectState
