@@ -90,6 +90,11 @@ export interface TemplateDefinition {
   animationPresets: TemplateAnimationPreset[];
   defaultDurationMs: number;
   sceneSequencingRules: TemplateSceneRule[];
+  recommendationSignals?: {
+    projectTypeTags?: string[];
+    categorySignals?: Array<"hook" | "captions" | "cta" | "lower-third" | "product" | string>;
+    confidenceWeights?: Partial<Record<"projectType" | "aspectRatio" | "captions" | "cta" | "hook" | "lowerThird" | "product", number>>;
+  };
 }
 
 export interface CaptionWord {

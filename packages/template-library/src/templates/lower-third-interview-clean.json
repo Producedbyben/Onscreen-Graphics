@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "live-scoreboard-vertical",
-  "name": "Live Scoreboard (Vertical)",
+  "id": "lower-third-interview-clean-vertical",
+  "name": "Lower Third Interview Clean (Vertical)",
   "category": "scoreboards",
   "aspectRatio": "9:16",
   "trackBlueprints": [
@@ -25,7 +25,7 @@
       "id": "matchLabel",
       "label": "Match Label",
       "type": "text",
-      "defaultValue": "Match Day",
+      "defaultValue": "Lower Third Interview Clean",
       "maxChars": 24,
       "allowedStyles": [
         "uppercase",
@@ -83,7 +83,7 @@
       "id": "primaryColor",
       "label": "Primary Color",
       "type": "color",
-      "defaultValue": "#0EA5E9",
+      "defaultValue": "#94A3B8",
       "allowedStyles": [
         "solid",
         "gradient-start"
@@ -200,19 +200,21 @@
   ],
   "recommendationSignals": {
     "projectTypeTags": [
-      "scoreboard",
-      "sports",
-      "lower-third"
+      "lower-third",
+      "shorts",
+      "social"
     ],
     "categorySignals": [
       "lower-third",
-      "captions"
+      "hook"
     ],
     "confidenceWeights": {
       "projectType": 0.5,
       "aspectRatio": 0.2,
       "captions": 0.1,
-      "lowerThird": 0.2
+      "hook": 0.1,
+      "lowerThird": 0.1,
+      "cta": 0.1
     }
   }
 }

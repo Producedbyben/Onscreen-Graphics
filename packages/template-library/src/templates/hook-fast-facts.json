@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "ranking-videos-vertical",
-  "name": "Ranking Videos (Vertical)",
+  "id": "hook-fast-facts-vertical",
+  "name": "Hook Fast Facts (Vertical)",
   "category": "rankings",
   "aspectRatio": "9:16",
   "trackBlueprints": [
@@ -24,7 +24,7 @@
       "id": "title",
       "label": "Title",
       "type": "text",
-      "defaultValue": "Top 10 Plays",
+      "defaultValue": "Hook Fast Facts",
       "maxChars": 36,
       "allowedStyles": [
         "bold",
@@ -48,7 +48,7 @@
       "id": "accentColor",
       "label": "Accent Color",
       "type": "color",
-      "defaultValue": "#FF4D6D",
+      "defaultValue": "#F43F5E",
       "allowedStyles": [
         "solid",
         "gradient-start"
@@ -165,19 +165,21 @@
   ],
   "recommendationSignals": {
     "projectTypeTags": [
-      "ranking",
-      "sports",
-      "highlights"
+      "hook",
+      "shorts",
+      "social"
     ],
     "categorySignals": [
       "hook",
-      "captions"
+      "hook"
     ],
     "confidenceWeights": {
       "projectType": 0.5,
       "aspectRatio": 0.2,
-      "captions": 0.2,
-      "hook": 0.1
+      "captions": 0.1,
+      "hook": 0.1,
+      "lowerThird": 0.1,
+      "cta": 0.1
     }
   }
 }

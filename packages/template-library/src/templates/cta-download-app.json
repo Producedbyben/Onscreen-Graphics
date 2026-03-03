@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "countdown-list-vertical",
-  "name": "Countdown List (Vertical)",
+  "id": "cta-download-app-vertical",
+  "name": "CTA Download App (Vertical)",
   "category": "listicles",
   "aspectRatio": "9:16",
   "trackBlueprints": [
@@ -16,15 +16,15 @@
   ],
   "defaultOverlays": [],
   "placeholders": {
-    "headline": "5 Things You Need to Know",
-    "cta": "Follow for part 2"
+    "headline": "CTA Download App",
+    "cta": "Tap to continue"
   },
   "editableFields": [
     {
       "id": "headline",
       "label": "Headline",
       "type": "text",
-      "defaultValue": "5 Things You Need to Know",
+      "defaultValue": "CTA Download App",
       "maxChars": 44,
       "allowedStyles": [
         "bold",
@@ -36,7 +36,7 @@
       "id": "cta",
       "label": "Call to Action",
       "type": "text",
-      "defaultValue": "Follow for part 2",
+      "defaultValue": "Tap to continue",
       "maxChars": 30,
       "allowedStyles": [
         "semibold",
@@ -48,7 +48,7 @@
       "id": "highlightColor",
       "label": "Highlight Color",
       "type": "color",
-      "defaultValue": "#F59E0B",
+      "defaultValue": "#3B82F6",
       "allowedStyles": [
         "solid",
         "gradient-start"
@@ -165,20 +165,20 @@
   ],
   "recommendationSignals": {
     "projectTypeTags": [
-      "countdown",
-      "listicle",
-      "cta"
+      "cta",
+      "conversion",
+      "marketing",
+      "shorts"
     ],
     "categorySignals": [
-      "hook",
       "cta",
-      "captions"
+      "cta"
     ],
     "confidenceWeights": {
       "projectType": 0.45,
       "aspectRatio": 0.2,
-      "captions": 0.15,
-      "cta": 0.2
+      "cta": 0.25,
+      "product": 0.1
     }
   }
 }

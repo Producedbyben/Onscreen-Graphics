@@ -26,6 +26,9 @@
       .empty { color: #94a3b8; border: 1px dashed #475569; border-radius: 8px; padding: 12px; font-size: .9rem; }
       .hint { font-size: .8rem; color: #94a3b8; margin-top: 4px; }
       .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      .tab { background: #0b1220; border: 1px solid #475569; color: #cbd5e1; padding: 6px 10px; border-radius: 999px; cursor: pointer; font-size: .82rem; }
+      .tab.active { background: #0ea5e9; color: #082f49; border-color: #38bdf8; font-weight: 700; }
       pre { white-space: pre-wrap; word-break: break-word; font-size: 0.8rem; max-height: 380px; overflow: auto; }
     </style>
   </head>
@@ -42,6 +45,7 @@
           <button id="saveDraftBtn" type="button" class="secondary" title="Save your current draft">Save draft now</button>
           <span id="draftInfo" class="hint">No draft loaded yet.</span>
         </div>
+        <div id="templateCategoryTabs" class="tabs"></div>
       </section>
 
       <section class="panel" data-step="template">
@@ -50,11 +54,13 @@
           <label title="Pick a starting layout for your project">
             Template
             <select id="templateSelect"></select>
+            <div id="templateCount" class="hint"></div>
           </label>
           <label>
             Project name
             <input id="projectName" type="text" value="Untitled from Upload" />
           </label>
+          <button id="applyBestBtn" type="button" class="secondary">Apply best template</button>
           <button id="toMediaBtn" type="button">Continue to media</button>
         </div>
       </section>
@@ -150,6 +156,9 @@
       const projectNameInput = document.querySelector('#projectName');
       const mediaFileInput = document.querySelector('#mediaFile');
       const toMediaBtn = document.querySelector('#toMediaBtn');
+      const applyBestBtn = document.querySelector('#applyBestBtn');
+      const templateCategoryTabs = document.querySelector('#templateCategoryTabs');
+      const templateCount = document.querySelector('#templateCount');
       const createBtn = document.querySelector('#createBtn');
       const uploadStatus = document.querySelector('#uploadStatus');
       const output = document.querySelector('#output');
@@ -182,6 +191,8 @@
       let uploadedAsset;
       let projectState;
       let currentStep = 'template';
+      let allTemplates = [];
+      let activeTemplateCategory = "all";
 
       function setStatus(message, state = 'info') {
         uploadStatus.textContent = message;
@@ -225,6 +236,59 @@
             card.classList.toggle('active', card.textContent.toLowerCase().includes(currentStep));
           }
         }
+      }
+
+
+      const categoryTabs = [
+        { key: 'all', label: 'All' },
+        { key: 'hook', label: 'Hook' },
+        { key: 'captions', label: 'Captions' },
+        { key: 'cta', label: 'CTA' },
+        { key: 'lower-third', label: 'Lower Third' },
+        { key: 'product', label: 'Product' }
+      ];
+
+      function templateMatchesCategory(template, category) {
+        if (category === 'all') return true;
+        const signals = (template.recommendationSignals?.categorySignals || []).map((signal) => `${signal}`.toLowerCase());
+        return signals.includes(category);
+      }
+
+      function renderTemplateTabs() {
+        templateCategoryTabs.innerHTML = '';
+        for (const tab of categoryTabs) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = `tab ${activeTemplateCategory === tab.key ? 'active' : ''}`;
+          button.textContent = tab.label;
+          button.addEventListener('click', () => {
+            activeTemplateCategory = tab.key;
+            renderTemplateTabs();
+            renderTemplateOptions();
+          });
+          templateCategoryTabs.append(button);
+        }
+      }
+
+      function renderTemplateOptions() {
+        templateSelect.innerHTML = '';
+        const filtered = allTemplates.filter((template) => templateMatchesCategory(template, activeTemplateCategory));
+
+        for (const template of filtered) {
+          const option = document.createElement('option');
+          option.value = template.id;
+          option.textContent = `${template.name} (${template.aspectRatio})`;
+          templateSelect.append(option);
+        }
+
+        if (!filtered.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No templates available for this category';
+          templateSelect.append(option);
+        }
+
+        templateCount.textContent = `Showing ${filtered.length} of ${allTemplates.length} templates.`;
       }
 
       function hydrateInspector() {
@@ -299,16 +363,44 @@
       async function loadTemplates() {
         const response = await fetch('/api/templates');
         const data = await response.json();
-        templateSelect.innerHTML = '';
-
-        for (const template of data.templates) {
-          const option = document.createElement('option');
-          option.value = template.id;
-          option.textContent = `${template.name} (${template.aspectRatio})`;
-          templateSelect.append(option);
-        }
+        allTemplates = data.templates;
+        renderTemplateTabs();
+        renderTemplateOptions();
 
         output.textContent = `Loaded ${data.templates.length} templates. Start with step 1.`;
+      }
+
+
+      async function applyBestTemplate() {
+        const desiredCategories = activeTemplateCategory === 'all' ? [] : [activeTemplateCategory];
+        const metadata = {
+          projectType: projectNameInput.value.trim().toLowerCase().includes('product') ? 'product' : undefined,
+          aspectRatio: '9:16',
+          desiredCategories,
+          hasCaptions: desiredCategories.includes('captions') || desiredCategories.includes('lower-third'),
+          needsCTA: desiredCategories.includes('cta') || desiredCategories.includes('product')
+        };
+
+        const response = await fetch('/api/templates/recommended', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ projectMetadata: metadata })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.template?.id) {
+          setStatus(`Recommendation failed: ${data.error || 'Unknown error'}`, 'warn');
+          return;
+        }
+
+        const inCategory = allTemplates.find((template) => template.id === data.template.id);
+        if (inCategory && !templateMatchesCategory(inCategory, activeTemplateCategory)) {
+          activeTemplateCategory = 'all';
+          renderTemplateTabs();
+          renderTemplateOptions();
+        }
+
+        templateSelect.value = data.template.id;
+        setStatus(`Best template selected: ${data.template.name}`, 'success');
       }
 
       async function uploadFile(file) {
@@ -430,6 +522,7 @@
       }
 
       toMediaBtn.addEventListener('click', () => setStep('media'));
+      applyBestBtn.addEventListener('click', applyBestTemplate);
       mediaFileInput.addEventListener('change', () => uploadFile(mediaFileInput.files?.[0]));
       createBtn.addEventListener('click', createProject);
       applySceneEditsBtn.addEventListener('click', applySceneEdits);

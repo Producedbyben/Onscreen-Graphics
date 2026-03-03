@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const templatesDir = join(__dirname, "..", "src", "templates");
 
-const templateFiles = ["ranking-videos.json", "scoreboards.json", "countdown-list.json"];
+const templateFiles = readdirSync(templatesDir).filter((file) => file.endsWith(".json")).sort();
 
 function readTemplate(fileName) {
   const fullPath = join(templatesDir, fileName);
@@ -15,6 +15,7 @@ function readTemplate(fileName) {
 }
 
 test("all shipped templates declare schemaVersion 1", () => {
+  assert.ok(templateFiles.length >= 20, "expected expanded template inventory");
   for (const file of templateFiles) {
     const template = readTemplate(file);
     assert.equal(template.schemaVersion, 1, `${file} must define schemaVersion: 1`);
@@ -46,5 +47,15 @@ test("editable field constraints are structurally valid", () => {
         assert.ok(field.positionPreset.trim().length > 0, `${file}:${field.id} positionPreset cannot be empty`);
       }
     }
+  }
+});
+
+test("templates expose recommendation signals", () => {
+  for (const file of templateFiles) {
+    const template = readTemplate(file);
+    assert.ok(template.recommendationSignals, `${file} must include recommendationSignals`);
+    assert.ok(Array.isArray(template.recommendationSignals.projectTypeTags), `${file} projectTypeTags must be an array`);
+    assert.ok(Array.isArray(template.recommendationSignals.categorySignals), `${file} categorySignals must be an array`);
+    assert.equal(typeof template.recommendationSignals.confidenceWeights, "object", `${file} confidenceWeights must be an object`);
   }
 });

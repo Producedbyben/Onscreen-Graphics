@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { basename, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -17,7 +17,7 @@ mkdirSync(uploadsDir, { recursive: true });
 mkdirSync(draftDir, { recursive: true });
 const execFileAsync = promisify(execFile);
 
-const templateSources = ["ranking-videos.json", "scoreboards.json", "countdown-list.json"];
+const templateSources = readdirSync(templatesDir).filter((fileName) => fileName.endsWith(".json")).sort();
 
 const templates = templateSources.map((fileName) => {
   const raw = readFileSync(resolve(templatesDir, fileName), "utf8");
@@ -379,17 +379,57 @@ async function probeMediaFile(filePath) {
   }
 }
 
+
+function getRecommendedTemplate(projectMetadata = {}) {
+  const desiredCategories = (projectMetadata.desiredCategories ?? []).map((category) => `${category}`.toLowerCase());
+  const projectType = typeof projectMetadata.projectType === "string" ? projectMetadata.projectType.toLowerCase() : undefined;
+
+  const scored = templates.map((template) => {
+    const weights = template.recommendationSignals?.confidenceWeights ?? {};
+    const projectTypeTags = (template.recommendationSignals?.projectTypeTags ?? []).map((tag) => `${tag}`.toLowerCase());
+    const categorySignals = (template.recommendationSignals?.categorySignals ?? []).map((signal) => `${signal}`.toLowerCase());
+
+    let score = 0;
+
+    if (projectType && projectTypeTags.includes(projectType)) {
+      score += weights.projectType ?? 0.45;
+    }
+
+    if (projectMetadata.aspectRatio && template.aspectRatio === projectMetadata.aspectRatio) {
+      score += weights.aspectRatio ?? 0.2;
+    }
+
+    if (projectMetadata.hasCaptions && categorySignals.includes("captions")) {
+      score += weights.captions ?? 0.2;
+    }
+
+    if (projectMetadata.needsCTA && categorySignals.includes("cta")) {
+      score += weights.cta ?? 0.2;
+    }
+
+    if (desiredCategories.some((category) => categorySignals.includes(category))) {
+      score += 0.25;
+    }
+
+    return { template, score };
+  });
+
+  scored.sort((left, right) => right.score - left.score || left.template.id.localeCompare(right.template.id));
+  return scored[0] ?? { template: templates[0], score: 0 };
+}
+
 function getTemplateById(templateId) {
   return templates.find((template) => template.id === templateId);
 }
 
 function listTemplateMetadata() {
-  return templates.map(({ id, name, category, aspectRatio, defaultDurationMs }) => ({
+  return templates.map(({ id, name, category, aspectRatio, defaultDurationMs, recommendationSignals }) => ({
     id,
     name,
     category,
     aspectRatio,
-    defaultDurationMs
+    defaultDurationMs,
+    recommendationSignals
   }));
 }
 
@@ -839,8 +879,8 @@ async function handleUploadRequest(req, res) {
   });
 }
 
-function startWebServer() {
-  const port = Number(process.env.PORT ?? 3000);
+function startWebServer(options = {}) {
+  const port = Number(options.port ?? process.env.PORT ?? 3000);
   const indexHtml = readFileSync(indexHtmlPath, "utf8");
 
   const server = createServer(async (req, res) => {
@@ -854,6 +894,17 @@ function startWebServer() {
 
     if (method === "GET" && url === "/api/templates") {
       sendJson(res, 200, { templates: listTemplateMetadata() });
+      return;
+    }
+
+    if (method === "POST" && url === "/api/templates/recommended") {
+      try {
+        const parsedBody = await parseJsonBody(req);
+        const result = getRecommendedTemplate(parsedBody.projectMetadata ?? {});
+        sendJson(res, 200, { template: result.template, score: result.score });
+      } catch (error) {
+        sendJson(res, 400, { error: error.message, code: error.code ?? "BAD_REQUEST", details: error.details });
+      }
       return;
     }
 
@@ -997,6 +1048,8 @@ function startWebServer() {
   server.listen(port, () => {
     console.log(`Onscreen web UI running at http://localhost:${port}`);
   });
+
+  return server;
 }
 
 if (process.env.NODE_ENV !== "test") {
@@ -1011,6 +1064,7 @@ export {
   createProjectFromTemplate,
   duplicateScene,
   enforceOverlayTextLegibility,
+  getRecommendedTemplate,
   importMediaAndCreateProject,
   listCaptionStylePacks,
   listTemplateMetadata,
