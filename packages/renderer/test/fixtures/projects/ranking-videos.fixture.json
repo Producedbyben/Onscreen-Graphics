@@ -1,0 +1,10 @@
+{
+  "templateFile": "ranking-videos.json",
+  "projectId": "fixture-ranking",
+  "projectName": "Ranking Fixture Project",
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "durationMs": 9000,
+  "clipsPerTrack": 2
+}

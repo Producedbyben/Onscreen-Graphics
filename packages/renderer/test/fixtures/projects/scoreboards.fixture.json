@@ -1,0 +1,10 @@
+{
+  "templateFile": "scoreboards.json",
+  "projectId": "fixture-scoreboards",
+  "projectName": "Scoreboards Fixture Project",
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "durationMs": 8000,
+  "clipsPerTrack": 2
+}
