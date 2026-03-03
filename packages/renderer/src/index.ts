@@ -1,3 +1,4 @@
+import { validateTextLegibility } from "@onscreen/core";
 import type { AnimationKeyframe, OverlayElement, Project, Track } from "@onscreen/core";
 
 export type SupportedCodec = "h264";
@@ -237,6 +238,10 @@ export interface RenderQueueStatusEntry {
   detail?: string;
 }
 
+export interface RenderStatusMetadata {
+  warnings?: string[];
+}
+
 export interface RenderQueueJob {
   id: string;
   idempotencyKey: string;
@@ -251,6 +256,7 @@ export interface RenderQueueJob {
   validationDiagnostics?: RenderValidationDiagnostic[];
   preflightActions?: RenderPreflightAction[];
   artifact?: RenderArtifactMetadata;
+  statusMetadata?: RenderStatusMetadata;
   createdAt: string;
   updatedAt: string;
 }
@@ -270,6 +276,11 @@ export interface RenderRequest {
   preflight?: {
     normalizeVideoContainer?: boolean;
     normalizeVideoFps?: boolean;
+  };
+  legibilityValidation?: {
+    enabled?: boolean;
+    minimumContrastRatio?: number;
+    backgroundSample?: string;
   };
 }
 
@@ -461,6 +472,36 @@ export function validateRenderRequestDetailed(request: RenderRequest): RenderVal
   };
 }
 
+
+function collectLegibilityWarnings(request: RenderRequest): string[] {
+  if (!request.legibilityValidation?.enabled) {
+    return [];
+  }
+
+  const threshold = request.legibilityValidation.minimumContrastRatio ?? 4.5;
+  const backgroundSample = request.legibilityValidation.backgroundSample ?? "#7C8594";
+  const warnings: string[] = [];
+
+  for (const track of request.project.tracks) {
+    for (const clip of track.clips) {
+      for (const overlay of clip.overlays) {
+        if (overlay.kind !== "text") {
+          continue;
+        }
+
+        const validation = validateTextLegibility((overlay.style ?? {}) as Record<string, unknown>, backgroundSample, threshold);
+        if (!validation.passes) {
+          warnings.push(
+            `Overlay "${overlay.id}" failed legibility threshold ${threshold.toFixed(2)} with contrast ${validation.contrastRatio.toFixed(2)}.`,
+          );
+        }
+      }
+    }
+  }
+
+  return warnings;
+}
+
 export function validateRenderRequest(request: RenderRequest): ExportPreset {
   const result = validateRenderRequestDetailed(request);
   if (!result.preset || !result.isValid) {
@@ -618,6 +659,7 @@ export function renderProject(request: RenderRequest): RenderResult {
 
       const preset = withTierEncoding(validation.preset, tier);
       const renderJob = buildRenderJobFormat(request, jobId);
+      const legibilityWarnings = collectLegibilityWarnings(request);
 
       const processingAt = new Date().toISOString();
       activeJob = {
@@ -626,6 +668,7 @@ export function renderProject(request: RenderRequest): RenderResult {
         progressPercent: 50,
         statusHistory: [...activeJob.statusHistory, { status: "processing", timestamp: processingAt }],
         preflightActions: validation.preflightActions,
+        statusMetadata: legibilityWarnings.length > 0 ? { warnings: legibilityWarnings } : undefined,
         updatedAt: processingAt,
       };
 
