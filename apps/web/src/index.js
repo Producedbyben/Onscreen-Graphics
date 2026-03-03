@@ -12,9 +12,11 @@ const indexHtmlPath = resolve(__dirname, "../public/index.html");
 const uploadsDir = resolve(__dirname, "../uploads");
 const draftDir = resolve(__dirname, "../storage");
 const draftPath = resolve(draftDir, "latest-draft.json");
+const projectStorageDir = resolve(draftDir, "projects");
 
 mkdirSync(uploadsDir, { recursive: true });
 mkdirSync(draftDir, { recursive: true });
+mkdirSync(projectStorageDir, { recursive: true });
 const execFileAsync = promisify(execFile);
 
 const templateSources = readdirSync(templatesDir).filter((fileName) => fileName.endsWith(".json")).sort();
@@ -840,6 +842,169 @@ function loadDraft() {
   return parsed;
 }
 
+
+function getProjectRevisionPath(projectId) {
+  return resolve(projectStorageDir, sanitizeFileName(projectId), "revisions.json");
+}
+
+function loadProjectRevisionRecord(projectId) {
+  const revisionPath = getProjectRevisionPath(projectId);
+  if (!existsSync(revisionPath)) {
+    return { revisions: [] };
+  }
+
+  const parsed = JSON.parse(readFileSync(revisionPath, "utf8"));
+  return {
+    revisions: Array.isArray(parsed?.revisions) ? parsed.revisions : []
+  };
+}
+
+function saveProjectRevisionRecord(projectId, record) {
+  const revisionPath = getProjectRevisionPath(projectId);
+  mkdirSync(dirname(revisionPath), { recursive: true });
+  writeFileSync(revisionPath, JSON.stringify(record, null, 2));
+}
+
+function createRevisionPatchSummary(summary = {}) {
+  return {
+    trackIdsUpdated: Array.isArray(summary.trackIdsUpdated) ? summary.trackIdsUpdated : [],
+    overlayIdsUpdated: Array.isArray(summary.overlayIdsUpdated) ? summary.overlayIdsUpdated : [],
+    captionUpdated: Boolean(summary.captionUpdated),
+    styleUpdated: Boolean(summary.styleUpdated),
+    notes: typeof summary.notes === "string" ? summary.notes : ""
+  };
+}
+
+function applyAutomationBatch(project, operations = []) {
+  const nextProject = JSON.parse(JSON.stringify(project));
+  const appliedOperations = [];
+
+  for (const operation of operations) {
+    if (operation.type === "duplicate-with-replacements") {
+      let duplicated = 0;
+      const duplicateCount = Math.max(1, Number(operation.duplicateCount ?? 1));
+      const replacements = Object.entries(operation.replacements ?? {}).sort(([left], [right]) => left.localeCompare(right));
+
+      for (const track of nextProject.tracks ?? []) {
+        const sourceIndex = track.clips.findIndex((clip) => clip.id === operation.clipId);
+        if (sourceIndex === -1) {
+          continue;
+        }
+
+        const sourceClip = track.clips[sourceIndex];
+        const clones = [];
+        for (let copyIndex = 0; copyIndex < duplicateCount; copyIndex += 1) {
+          const clone = JSON.parse(JSON.stringify(sourceClip));
+          clone.id = `${sourceClip.id}-dup-${copyIndex + 1}`;
+          clone.overlays = sourceClip.overlays.map((overlay) => {
+            const nextOverlay = JSON.parse(JSON.stringify(overlay));
+            nextOverlay.id = `${overlay.id}-dup-${copyIndex + 1}`;
+            if (nextOverlay.kind === "text" && typeof nextOverlay.style?.text === "string") {
+              nextOverlay.style.text = replacements.reduce((value, [search, replacement]) => value.split(search).join(replacement), nextOverlay.style.text);
+            }
+            return nextOverlay;
+          });
+          clones.push(clone);
+          duplicated += 1;
+        }
+
+        track.clips.splice(sourceIndex + 1, 0, ...clones);
+        break;
+      }
+
+      appliedOperations.push({
+        type: operation.type,
+        details: `Duplicated clip ${operation.clipId} ${duplicated} time(s).`
+      });
+      continue;
+    }
+
+    if (operation.type === "bulk-style-apply") {
+      let updated = 0;
+      for (const track of nextProject.tracks ?? []) {
+        for (const clip of track.clips ?? []) {
+          for (const overlay of clip.overlays ?? []) {
+            if (operation.overlayKind && overlay.kind !== operation.overlayKind) {
+              continue;
+            }
+            overlay.style = { ...(overlay.style ?? {}), ...(operation.stylePatch ?? {}) };
+            updated += 1;
+          }
+        }
+      }
+
+      appliedOperations.push({
+        type: operation.type,
+        details: `Applied style patch to ${updated} overlay(s).`
+      });
+    }
+  }
+
+  nextProject.updatedAt = new Date().toISOString();
+  return { project: nextProject, appliedOperations };
+}
+
+function createProjectRevision(projectId, project, options = {}) {
+  const normalizedProject = normalizeProjectCaptions(JSON.parse(JSON.stringify(project)));
+  const record = loadProjectRevisionRecord(projectId);
+  const timestamp = new Date().toISOString();
+  const previousRevision = record.revisions.at(-1);
+  const revision = {
+    id: randomUUID(),
+    projectId,
+    parentRevisionId: options.parentRevisionId ?? previousRevision?.id,
+    source: options.source === "author" ? "author" : "system",
+    authorId: typeof options.authorId === "string" ? options.authorId : undefined,
+    timestamp,
+    patchSummary: createRevisionPatchSummary(options.patchSummary),
+    snapshot: {
+      ...normalizedProject,
+      collaboration: {
+        ...(normalizedProject.collaboration ?? {}),
+        headRevisionId: undefined,
+        pendingOperations: Array.isArray(normalizedProject.collaboration?.pendingOperations)
+          ? normalizedProject.collaboration.pendingOperations
+          : []
+      }
+    }
+  };
+
+  revision.snapshot.collaboration.headRevisionId = revision.id;
+  record.revisions.push(revision);
+  saveProjectRevisionRecord(projectId, record);
+  return revision;
+}
+
+function listProjectRevisions(projectId) {
+  const record = loadProjectRevisionRecord(projectId);
+  return record.revisions.map((revision) => ({
+    id: revision.id,
+    projectId: revision.projectId,
+    parentRevisionId: revision.parentRevisionId,
+    source: revision.source,
+    authorId: revision.authorId,
+    timestamp: revision.timestamp,
+    patchSummary: revision.patchSummary
+  }));
+}
+
+function restoreProjectRevision(projectId, revisionId) {
+  const record = loadProjectRevisionRecord(projectId);
+  const revision = record.revisions.find((candidate) => candidate.id === revisionId);
+  if (!revision) {
+    throw validationError(`Revision ${revisionId} not found.`, { projectId, revisionId });
+  }
+
+  const project = normalizeProjectCaptions(JSON.parse(JSON.stringify(revision.snapshot)));
+  project.collaboration = {
+    ...(project.collaboration ?? {}),
+    headRevisionId: revision.id,
+    pendingOperations: Array.isArray(project.collaboration?.pendingOperations) ? project.collaboration.pendingOperations : []
+  };
+
+  return { revision, project };
+}
+
 async function handleUploadRequest(req, res) {
   const fileName = req.headers["x-file-name"];
   const mimeType = req.headers["content-type"];
@@ -1023,6 +1188,88 @@ function startWebServer(options = {}) {
     if (method === "GET" && url === "/api/projects/draft") {
       const draft = loadDraft();
       sendJson(res, 200, { draft });
+      return;
+    }
+
+
+    const revisionsRouteMatch = url?.match(/^\/api\/projects\/([^/]+)\/revisions$/);
+    if (revisionsRouteMatch && method === "POST") {
+      try {
+        const parsedBody = await parseJsonBody(req);
+        if (!parsedBody.project) {
+          throw validationError("Project payload is required for revision save.");
+        }
+
+        const projectId = decodeURIComponent(revisionsRouteMatch[1]);
+        const revision = createProjectRevision(projectId, parsedBody.project, {
+          source: parsedBody.source,
+          authorId: parsedBody.authorId,
+          parentRevisionId: parsedBody.parentRevisionId,
+          patchSummary: parsedBody.patchSummary
+        });
+        sendJson(res, 201, { revision });
+      } catch (error) {
+        const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
+        sendJson(res, statusCode, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
+      }
+      return;
+    }
+
+    if (revisionsRouteMatch && method === "GET") {
+      const projectId = decodeURIComponent(revisionsRouteMatch[1]);
+      sendJson(res, 200, { revisions: listProjectRevisions(projectId) });
+      return;
+    }
+
+    const restoreRouteMatch = url?.match(/^\/api\/projects\/([^/]+)\/revisions\/([^/]+)\/restore$/);
+    if (restoreRouteMatch && method === "POST") {
+      try {
+        const projectId = decodeURIComponent(restoreRouteMatch[1]);
+        const revisionId = decodeURIComponent(restoreRouteMatch[2]);
+        const restored = restoreProjectRevision(projectId, revisionId);
+        sendJson(res, 200, restored);
+      } catch (error) {
+        const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 404;
+        sendJson(res, statusCode, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
+      }
+      return;
+    }
+
+    const automationRouteMatch = url?.match(/^\/api\/projects\/([^/]+)\/automation\/run$/);
+    if (automationRouteMatch && method === "POST") {
+      try {
+        const parsedBody = await parseJsonBody(req);
+        if (!parsedBody.project) {
+          throw validationError("Project payload is required for automation run.");
+        }
+
+        const projectId = decodeURIComponent(automationRouteMatch[1]);
+        const batchResult = applyAutomationBatch(parsedBody.project, parsedBody.operations ?? []);
+        const revision = createProjectRevision(projectId, batchResult.project, {
+          source: parsedBody.source ?? "system",
+          authorId: parsedBody.authorId,
+          patchSummary: parsedBody.patchSummary ?? {
+            notes: "Automation batch run"
+          }
+        });
+
+        sendJson(res, 200, { ...batchResult, revision });
+      } catch (error) {
+        const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
+        sendJson(res, statusCode, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
+      }
       return;
     }
 

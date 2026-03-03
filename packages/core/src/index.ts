@@ -7,3 +7,5 @@ export * from "./captionStylePacks";
 export * from "./layoutRules";
 
 export * from "./legibility";
+
+export * from "./automation";

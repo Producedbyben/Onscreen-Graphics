@@ -155,6 +155,39 @@ export interface ProjectMetadata {
   [key: string]: unknown;
 }
 
+export type ProjectRevisionSource = "author" | "system";
+
+export interface ProjectRevisionPatchSummary {
+  trackIdsUpdated?: string[];
+  overlayIdsUpdated?: string[];
+  captionUpdated?: boolean;
+  styleUpdated?: boolean;
+  notes?: string;
+  [key: string]: unknown;
+}
+
+export interface ProjectRevision {
+  id: string;
+  projectId: string;
+  parentRevisionId?: string;
+  source: ProjectRevisionSource;
+  authorId?: string;
+  timestamp: string;
+  patchSummary: ProjectRevisionPatchSummary;
+  snapshot: Project;
+}
+
+export interface CollaborationMetadata {
+  headRevisionId?: string;
+  pendingOperations?: Array<{
+    id: string;
+    authorId: string;
+    timestamp: string;
+    operation: string;
+    payload?: Record<string, unknown>;
+  }>;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -168,4 +201,5 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   metadata?: ProjectMetadata;
+  collaboration?: CollaborationMetadata;
 }
