@@ -35,6 +35,50 @@ const TIMELINE_DEFAULTS = {
   minOverlayDurationMs: 250
 };
 
+const SAFE_ZONE_PRESETS = {
+  "tiktok-9:16": { top: 0.14, right: 0.2, bottom: 0.22 }
+};
+
+const SAFE_ZONE_DEFAULT_OPACITY = 0.35;
+
+function getSafeZoneGuideRects(width, height, preset = "tiktok-9:16") {
+  const insets = SAFE_ZONE_PRESETS[preset] ?? SAFE_ZONE_PRESETS["tiktok-9:16"];
+  const safeWidth = Math.max(0, Number(width) || 0);
+  const safeHeight = Math.max(0, Number(height) || 0);
+
+  return [
+    {
+      id: "top",
+      x: 0,
+      y: 0,
+      width: safeWidth,
+      height: Math.round(safeHeight * insets.top)
+    },
+    {
+      id: "right",
+      x: Math.round(safeWidth * (1 - insets.right)),
+      y: 0,
+      width: Math.round(safeWidth * insets.right),
+      height: safeHeight
+    },
+    {
+      id: "bottom",
+      x: 0,
+      y: Math.round(safeHeight * (1 - insets.bottom)),
+      width: safeWidth,
+      height: Math.round(safeHeight * insets.bottom)
+    }
+  ];
+}
+
+function createSafeZoneGuideSettings(aspectRatio) {
+  return {
+    enabled: aspectRatio === "9:16",
+    opacity: SAFE_ZONE_DEFAULT_OPACITY,
+    preset: "tiktok-9:16"
+  };
+}
+
 const SUPPORTED_MEDIA_FORMATS = {
   ".mp4": {
     format: "mp4",
@@ -143,7 +187,8 @@ function listTemplateMetadata() {
 
 function createProjectScaffold({ projectName, aspectRatio = "9:16", durationMs = 15000 }) {
   const now = new Date().toISOString();
-  const dimensions = ASPECT_RATIO_DIMENSIONS[aspectRatio] ?? ASPECT_RATIO_DIMENSIONS["9:16"];
+  const normalizedAspectRatio = ASPECT_RATIO_DIMENSIONS[aspectRatio] ? aspectRatio : "9:16";
+  const dimensions = ASPECT_RATIO_DIMENSIONS[normalizedAspectRatio] ?? ASPECT_RATIO_DIMENSIONS["9:16"];
   const projectId = `project-${Date.now()}`;
 
   return {
@@ -171,7 +216,8 @@ function createProjectScaffold({ projectName, aspectRatio = "9:16", durationMs =
         snapThresholdMs: TIMELINE_DEFAULTS.overlaySnapMs,
         playheadMs: 0
       },
-      warnings: []
+      warnings: [],
+      safeZoneGuides: createSafeZoneGuideSettings(normalizedAspectRatio)
     }
   };
 }
@@ -247,9 +293,10 @@ function createProjectFromTemplate({ templateId, projectName, baseProject }) {
       });
 
   project.template = template;
+  project.metadata = project.metadata ?? {};
   project.metadata.createFlow = "template-first";
-  project.metadata.editableFieldDefaults = { ...(template.defaults?.fields ?? {}) };
-  project.metadata.bulkFieldValues = { ...(template.defaults?.fields ?? {}) };
+  project.metadata.editableFieldDefaults = { ...(project.metadata.editableFieldDefaults ?? {}), ...(template.defaults?.fields ?? {}) };
+  project.metadata.bulkFieldValues = { ...(project.metadata.bulkFieldValues ?? {}), ...(template.defaults?.fields ?? {}) };
   project.updatedAt = new Date().toISOString();
 
   return project;
@@ -622,7 +669,9 @@ function startWebServer() {
         const { templateId, projectName, mediaAsset } = parsedBody;
 
         const result = runCreateFromTemplateFlow(templateId, projectName, mediaAsset);
-        sendJson(res, 200, result);
+        const preset = result.project?.metadata?.safeZoneGuides?.preset;
+        const guides = getSafeZoneGuideRects(result.project?.width, result.project?.height, preset);
+        sendJson(res, 200, { ...result, guides });
       } catch (error) {
         const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
         sendJson(res, statusCode, {
@@ -644,7 +693,9 @@ function startWebServer() {
         }
 
         const updatedProject = updateProjectState(project, operation, payload);
-        sendJson(res, 200, { project: updatedProject });
+        const preset = updatedProject?.metadata?.safeZoneGuides?.preset;
+        const guides = getSafeZoneGuideRects(updatedProject?.width, updatedProject?.height, preset);
+        sendJson(res, 200, { project: updatedProject, guides });
       } catch (error) {
         const statusCode = error.code === "VALIDATION_ERROR" ? 422 : 400;
         sendJson(res, statusCode, {
@@ -679,6 +730,22 @@ function startWebServer() {
     if (method === "GET" && url === "/api/projects/draft") {
       const draft = loadDraft();
       sendJson(res, 200, { draft });
+      return;
+    }
+
+    if (method === "POST" && url === "/api/projects/safe-zones") {
+      try {
+        const parsedBody = await parseJsonBody(req);
+        const { width, height, preset } = parsedBody;
+        const guides = getSafeZoneGuideRects(width, height, preset);
+        sendJson(res, 200, { guides, width, height, preset: preset ?? "tiktok-9:16" });
+      } catch (error) {
+        sendJson(res, 400, {
+          error: error.message,
+          code: error.code ?? "BAD_REQUEST",
+          details: error.details
+        });
+      }
       return;
     }
 

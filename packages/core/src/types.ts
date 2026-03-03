@@ -92,6 +92,17 @@ export interface TemplateDefinition {
   sceneSequencingRules: TemplateSceneRule[];
 }
 
+export interface SafeZoneGuideSettings {
+  enabled: boolean;
+  opacity: number;
+  preset?: "tiktok-9:16" | string;
+}
+
+export interface ProjectMetadata {
+  safeZoneGuides?: SafeZoneGuideSettings;
+  [key: string]: unknown;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -103,5 +114,5 @@ export interface Project {
   template?: TemplateDefinition;
   createdAt: string;
   updatedAt: string;
-  metadata?: Record<string, unknown>;
+  metadata?: ProjectMetadata;
 }
