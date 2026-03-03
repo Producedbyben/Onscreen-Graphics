@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "countdown-list-vertical",
-  "name": "Countdown List (Vertical)",
-  "category": "listicles",
+  "id": "caption-news-breaking-vertical",
+  "name": "Caption News Breaking (Vertical)",
+  "category": "scoreboards",
   "aspectRatio": "9:16",
   "trackBlueprints": [
     {
@@ -16,7 +16,7 @@
   ],
   "defaultOverlays": [],
   "placeholders": {
-    "headline": "5 Things You Need to Know",
+    "headline": "Caption News Breaking",
     "cta": "Follow for part 2"
   },
   "editableFields": [
@@ -24,7 +24,7 @@
       "id": "headline",
       "label": "Headline",
       "type": "text",
-      "defaultValue": "5 Things You Need to Know",
+      "defaultValue": "Caption News Breaking",
       "maxChars": 44,
       "allowedStyles": [
         "bold",
@@ -48,7 +48,7 @@
       "id": "highlightColor",
       "label": "Highlight Color",
       "type": "color",
-      "defaultValue": "#F59E0B",
+      "defaultValue": "#DC2626",
       "allowedStyles": [
         "solid",
         "gradient-start"
@@ -165,20 +165,21 @@
   ],
   "recommendationSignals": {
     "projectTypeTags": [
-      "countdown",
-      "listicle",
-      "cta"
+      "captions",
+      "subtitle",
+      "shorts",
+      "lower-third"
     ],
     "categorySignals": [
-      "hook",
-      "cta",
+      "lower-third",
       "captions"
     ],
     "confidenceWeights": {
-      "projectType": 0.45,
+      "projectType": 0.4,
       "aspectRatio": 0.2,
-      "captions": 0.15,
-      "cta": 0.2
+      "captions": 0.3,
+      "hook": 0.05,
+      "cta": 0.05
     }
   }
 }
