@@ -63,6 +63,32 @@
         font-weight: 600;
       }
 
+      button[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .status {
+        margin-top: 10px;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0b1220;
+        font-size: 0.9rem;
+      }
+
+      .status.success {
+        border-color: #14532d;
+        background: #052e16;
+        color: #bbf7d0;
+      }
+
+      .status.error {
+        border-color: #7f1d1d;
+        background: #450a0a;
+        color: #fecaca;
+      }
+
       pre {
         white-space: pre-wrap;
         word-break: break-word;
@@ -80,6 +106,10 @@
       <section class="panel">
         <div class="row">
           <label>
+            Upload background media
+            <input id="mediaFile" type="file" accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" />
+          </label>
+          <label>
             Template
             <select id="templateSelect"></select>
           </label>
@@ -89,6 +119,8 @@
           </label>
           <button id="createBtn" type="button">Create project JSON</button>
         </div>
+        <div id="uploadStatus" class="status">Choose a video (MP4/WEBM/MOV) to begin.</div>
+        <button id="retryUploadBtn" type="button" style="margin-top: 10px; display: none;">Retry upload</button>
       </section>
 
       <section class="panel">
@@ -100,8 +132,19 @@
     <script type="module">
       const templateSelect = document.querySelector('#templateSelect');
       const projectNameInput = document.querySelector('#projectName');
+      const mediaFileInput = document.querySelector('#mediaFile');
       const createBtn = document.querySelector('#createBtn');
+      const uploadStatus = document.querySelector('#uploadStatus');
+      const retryUploadBtn = document.querySelector('#retryUploadBtn');
       const output = document.querySelector('#output');
+
+      let uploadedAsset;
+      let lastSelectedFile;
+
+      function setUploadStatus(message, state = 'info') {
+        uploadStatus.textContent = message;
+        uploadStatus.className = `status ${state === 'info' ? '' : state}`.trim();
+      }
 
       async function loadTemplates() {
         const response = await fetch('/api/templates');
@@ -119,22 +162,92 @@
       }
 
       async function createProject() {
+        if (!uploadedAsset) {
+          setUploadStatus('Upload a media file before creating the project.', 'error');
+          return;
+        }
+
         output.textContent = 'Creating project…';
+        createBtn.disabled = true;
 
-        const response = await fetch('/api/projects/from-template', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            templateId: templateSelect.value,
-            projectName: projectNameInput.value
-          })
-        });
+        try {
+          const response = await fetch('/api/projects/from-template', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              templateId: templateSelect.value,
+              projectName: projectNameInput.value,
+              mediaAsset: uploadedAsset
+            })
+          });
 
-        const data = await response.json();
-        output.textContent = JSON.stringify(data, null, 2);
+          const data = await response.json();
+
+          if (!response.ok) {
+            const detailsHint = data.details?.hint ? ` Hint: ${data.details.hint}` : '';
+            throw new Error(`${data.error || 'Failed to create project.'}${detailsHint}`);
+          }
+
+          output.textContent = JSON.stringify(data, null, 2);
+        } catch (error) {
+          output.textContent = `Project creation failed: ${error.message}`;
+        } finally {
+          createBtn.disabled = false;
+        }
+      }
+
+      async function uploadFile(file) {
+        lastSelectedFile = file;
+        uploadedAsset = undefined;
+        retryUploadBtn.style.display = 'none';
+        createBtn.disabled = true;
+
+        if (!file) {
+          setUploadStatus('Choose a video (MP4/WEBM/MOV) to begin.', 'info');
+          return;
+        }
+
+        setUploadStatus(`Uploading ${file.name}…`, 'info');
+
+        try {
+          const response = await fetch('/api/uploads', {
+            method: 'POST',
+            headers: {
+              'content-type': file.type || 'application/octet-stream',
+              'x-file-name': file.name
+            },
+            body: file
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            const detailsHint = data.details?.hint ? ` Hint: ${data.details.hint}` : '';
+            throw new Error(`${data.error || 'Upload failed.'}${detailsHint}`);
+          }
+
+          uploadedAsset = data.asset;
+          createBtn.disabled = false;
+          setUploadStatus(
+            `Upload complete: ${uploadedAsset.fileName} (${uploadedAsset.format.toUpperCase()}, ${Math.round(
+              uploadedAsset.fileSize / 1024
+            )} KB).`,
+            'success'
+          );
+        } catch (error) {
+          retryUploadBtn.style.display = 'inline-block';
+          setUploadStatus(`Upload failed: ${error.message}`, 'error');
+          output.textContent = `Upload failed: ${error.message}`;
+        }
       }
 
       createBtn.addEventListener('click', createProject);
+      retryUploadBtn.addEventListener('click', () => {
+        if (lastSelectedFile) {
+          uploadFile(lastSelectedFile);
+        }
+      });
+      mediaFileInput.addEventListener('change', () => uploadFile(mediaFileInput.files?.[0]));
       loadTemplates().catch((error) => {
         output.textContent = `Failed to load templates: ${error.message}`;
       });
